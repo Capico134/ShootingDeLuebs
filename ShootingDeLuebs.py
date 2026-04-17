@@ -1,5 +1,4 @@
 import os 
-import re #Um die Version zu dedektieren
 import tkinter as tk
 import zipfile
 import io #für zipfile
@@ -15,7 +14,30 @@ import HardwareDeLuebs as HDeLuebs
 import HighscoreDeLuebs as HSDeLuebs 
 import StateManagerDeLuebs as SMDeLuebs
 
-VERSION = "1.13.0"
+import subprocess
+import re
+
+def get_current_version():
+    """
+    Zieht sich die aktuelle Version automatisch aus dem Git-Tag.
+    Gibt einen Fallback zurück, falls Git nicht verfügbar ist.
+    """
+    try:
+        # Fragt Git nach dem neuesten Tag (z.B. "v1.13.1")
+        git_tag = subprocess.check_output(["git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL).strip().decode("utf-8")
+        
+        # Nutzt dein importiertes 're', um alles außer Zahlen und Punkten zu entfernen 
+        # (macht aus "v1.13.1" sauber "1.13.1")
+        clean_version = re.sub(r'[^\d\.]', '', git_tag)
+        return clean_version
+        
+    except Exception:
+        # FALLBACK: Sehr wichtig! Falls das Spiel mal als reine ZIP-Datei 
+        # (ohne den versteckten .git Ordner) heruntergeladen wird.
+        return "1.13.1" # Hier den aktuellen Stand eintragen
+
+# Die globale Konstante wird jetzt automatisch befüllt!
+VERSION = get_current_version()
 
 class ShootingDeluebs:
     def __init__(self, root):
