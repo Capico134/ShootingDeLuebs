@@ -1,0 +1,9 @@
+# Nutzerdaten ignorieren
+highscore.json
+debug_log.txt
+logs/
+replays/
+
+# Python Cache (optional, aber sehr zu empfehlen)
+__pycache__/
+*.pyc
