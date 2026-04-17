@@ -596,7 +596,7 @@ class StateManager:
     #Funktion um die ID für das Logevent zu finden
     def get_next_match_id(self):
         highest_id = 0
-        log_dir = "logs"
+        log_dir = os.path.join("savegames", "logs")
         os.makedirs(log_dir, exist_ok=True) # Ordner erstellen, falls er fehlt    
         for filename in os.listdir(log_dir): # os.listdir ist das Python-Äquivalent zu "ls" oder "dir"
             # Prüfen, ob das Namensmuster stimmt (MATCH....json)

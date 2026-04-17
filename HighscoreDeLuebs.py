@@ -406,7 +406,8 @@ class HighscoreDeluebs:
                         event_details = ""
                         
                         if match_id:
-                            log_path = os.path.join("logs", f"MATCH{match_id:06d}.json")
+                            #log_path = os.path.join("logs", f"MATCH{match_id:06d}.json")
+                            log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
                             if os.path.exists(log_path):
                                 try:
                                     with open(log_path, "r", encoding="utf-8") as f:
@@ -485,7 +486,7 @@ class HighscoreDeluebs:
                         match_id = entry.get("match_id")
                         
                         if match_id:
-                            log_path = os.path.join("logs", f"MATCH{match_id:06d}.json")
+                            log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
                             time_debt_ms = 0  # Der Puffer
                             if os.path.exists(log_path):
                                 try:
@@ -791,7 +792,7 @@ class HighscoreDeluebs:
                                     yaml_lines.append("")
 
                                     # --- IN DATEI SPEICHERN ---
-                                    export_dir = "replays"
+                                    export_dir = "./savegames/replays"
                                     os.makedirs(export_dir, exist_ok=True)
                                     yaml_filename = os.path.join(export_dir, f"REPLAY_MATCH{match_id:06d}.yaml")
 
@@ -823,7 +824,7 @@ class HighscoreDeluebs:
                         match_id = entry.get("match_id")
                         if match_id:
                             # Wir suchen die YAML-Datei im replays-Ordner
-                            yaml_filename = os.path.join("replays", f"REPLAY_MATCH{match_id:06d}.yaml")
+                            yaml_filename = os.path.join("savegames", "replays", f"REPLAY_MATCH{match_id:06d}.yaml")
                             
                             if os.path.exists(yaml_filename):
                                 print(f"Starte Roboter für {yaml_filename}...")
@@ -916,8 +917,8 @@ class HighscoreDeluebs:
             match_id = self.SDeluebs.SMobjekt.match_id
             # Event-Log als separate Datei speichern (nur wenn Events existieren)
             if match_timeline:
-                os.makedirs("logs", exist_ok=True)
-                log_dateiname = os.path.join("logs", f"MATCH{match_id:06d}.json")
+                os.makedirs(os.path.join("savegames", "logs"), exist_ok=True)
+                log_dateiname = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
                 # --- NEU: Die "Zwei-Zimmer-Wohnung" (Wrapper) bauen ---
                 match_data = {
                     "metadata": highscore_entry,
@@ -943,7 +944,7 @@ class HighscoreDeluebs:
 
 
 class HighscoreManager:
-    def __init__(self, file_path="highscore.json"):
+    def __init__(self, file_path="./savegames/highscore.json"):
         self.file_path = file_path
         self.data = []
 
