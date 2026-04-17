@@ -1,0 +1,112 @@
+scenario:
+  - name: "Fehler bei ungültigem Zugriff"
+    actual_method: "call_sm_method"
+    wert: ["get_value", "unbekannt"]
+    expected_exception: "AttributeError"
+    step_time: 2500 
+
+  - name: "Programm 12 laden"
+    action: "call_sm_method"
+    wert: ["setProgramm", 12]
+    step_time: 100
+
+  - name: "Ist gegner==1"
+    actual_attr: "gegner_modus"
+    expected: 1
+    step_time: 100
+
+  - name: "Countdown starten"
+    action: "start_countdown"
+    step_time: 500  
+  
+  - name: "Prüfe ob Stand exakt 3 ist"
+    actual_attr: "stand"
+    expected: 3
+    step_time: 3500
+
+  - name: "Spieler 2: Schuss 1"
+    action: "shoot"
+    wert: 0
+    step_time: 100  
+    
+  - name: "Spieler 2: Schuss 2"
+    action: "shoot"
+    wert: 1
+    step_time: 500      
+
+  - name: "Spieler 2: Schuss 3"
+    action: "shoot"
+    wert: 2
+    step_time: 500      
+    
+  - name: "Spieler 2: Speedpunkte = 0.48"
+    actual_method: "get_player_speedpunkte"
+    wert: 1
+    expected: 0.48
+    step_time: 2000          
+
+  - name: "Spieler 2 hat 4 Punkte"
+    actual_method: "get_player_punkte"
+    wert: 1
+    expected: 4
+    step_time: 150
+
+  - name: "Ist Modus Laden"
+    actual_attr: "get_state"
+    expected: "LADEN" 
+    step_time: 150
+
+  - name: "Spieler 2: Schuss 1"
+    action: "shoot"
+    wert: 0
+    step_time: 1200 
+
+  - name: "Spieler 1: Schuss 1"
+    action: "shoot"
+    wert: 4
+    step_time: 50  
+    
+  - name: "Spieler 2: Schuss 2"
+    action: "shoot"
+    wert: 1
+    step_time: 500      
+    
+  - name: "Schuss auf Mitte"
+    action: "shoot"
+    wert: 2
+    step_time: 150
+
+  - name: "Schuss auf 3"
+    action: "shoot"
+    wert: 3
+    step_time: 10
+
+  - name: "Load Spieler-json"
+    action: "verify_player_json"
+    wert: "./tests/PlayersExport.json"
+    step_time: 100      
+
+  - name: "Spieler 2 hat 8 Punkte"
+    actual_method: "get_player_punkte"
+    wert: 1
+    expected: 8
+    step_time: 4000    
+    
+  - name: "Spieler 1 hat 2 Punkte"
+    actual_method: "get_player_punkte"
+    wert: 0
+    expected: 2
+    step_time: 100        
+ 
+  - name: "Reset-Knopf drücken"
+    action: "reset_button_click"
+    step_time: 500
+
+  - name: "Stand nach Reset"
+    actual_attr: "stand"
+    expected: -1
+    step_time: 4500
+
+  - name: "GUI schließen"
+    action: "close_gui"
+    step_time: 200

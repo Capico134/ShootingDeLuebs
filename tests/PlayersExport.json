@@ -1,0 +1,46 @@
+{
+  "player0": {
+    "name": "Andreas",
+    "punkte_durchgang": 0,
+    "speedpunkte_durchgang": 0,
+    "treffer": [
+      4,
+      3,
+      -1,
+      -1,
+      -1
+    ],
+    "punkte_zyklus": 2,
+    "speedpunkte_zyklus": 0.3364,
+    "restzeit_zyklus": [
+      2.859,
+      2.187,
+      0,
+      0,
+      0
+    ],
+    "is_jaeger": true
+  },
+  "player1": {
+    "name": "Günther",
+    "punkte_durchgang": 4,
+    "speedpunkte_durchgang": 0.4749333333333333,
+    "treffer": [
+      0,
+      1,
+      2,
+      -1,
+      -1
+    ],
+    "punkte_zyklus": 4,
+    "speedpunkte_zyklus": 0.6447333333333333,
+    "restzeit_zyklus": [
+      2.906,
+      2.359,
+      2.203,
+      0,
+      0
+    ],
+    "is_jaeger": false
+  }
+}

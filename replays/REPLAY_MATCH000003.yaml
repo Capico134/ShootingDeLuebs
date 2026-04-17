@@ -1,0 +1,132 @@
+scenario:
+  - name: "Programm 18 laden: Default"
+    action: "call_sm_method"
+    wert: ["setProgramm", 18]
+    step_time: 300
+
+  - name: "Replay-ID setzen (Rec 3)"
+    action: "call_sm_method"
+    wert: ["set_replay_match", "Rec 3"]
+    step_time: 250
+
+  - name: "Spieler 1 aus Highscore setzen"
+    action: "set_sm_attr"
+    wert: ["spieler", "Andreas"]
+    step_time: 10
+
+  - name: "Spieler 2 aus Highscore setzen"
+    action: "set_sm_attr"
+    wert: ["spieler2", ""]
+    step_time: 10
+
+  - name: "Modifiziert-Tag entfernen"
+    action: "remove_modifiziert_tag"
+    step_time: 10
+
+  - name: "Countdown starten"
+    action: "start_countdown"
+    step_time: 500
+
+  - name: "Schuss auf 4 (Zyklus 1)"
+    action: "shoot"
+    wert: 4
+    step_time: 12251
+
+  - name: "Prüfe Status nach Schuss auf 4"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 3 (Zyklus 1)"
+    action: "shoot"
+    wert: 3
+    step_time: 644
+
+  - name: "Prüfe Status nach Schuss auf 3"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 2 (Zyklus 1)"
+    action: "shoot"
+    wert: 2
+    step_time: 747
+
+  - name: "Prüfe Status nach Schuss auf 2"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 0 (Zyklus 2)"
+    action: "shoot"
+    wert: 0
+    step_time: 7527
+
+  - name: "Prüfe Status nach Schuss auf 0"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 1 (Zyklus 2)"
+    action: "shoot"
+    wert: 1
+    step_time: 462
+
+  - name: "Prüfe Status nach Schuss auf 1"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 2 (Zyklus 2)"
+    action: "shoot"
+    wert: 2
+    step_time: 784
+
+  - name: "Prüfe Status nach Schuss auf 2"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 3 (Zyklus 2)"
+    action: "shoot"
+    wert: 3
+    step_time: 709
+
+  - name: "Prüfe Status nach Schuss auf 3"
+    actual_attr: "get_state"
+    expected: 'LADEN'
+    step_time: 10
+
+  - name: "Schuss auf 4 (Zyklus 3)"
+    action: "shoot"
+    wert: 4
+    step_time: 7010
+
+  - name: "Prüfe Status nach Schuss auf 4"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 3 (Zyklus 3)"
+    action: "shoot"
+    wert: 3
+    step_time: 807
+
+  - name: "Prüfe Status nach Schuss auf 3"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "Schuss auf 2 (Zyklus 3)"
+    action: "shoot"
+    wert: 2
+    step_time: 665
+
+  - name: "Prüfe Status nach Schuss auf 2"
+    actual_attr: "get_state"
+    expected: 'FEUER'
+    step_time: 10
+
+  - name: "GUI schließen"
+    action: "close_gui"
+    step_time: 20000

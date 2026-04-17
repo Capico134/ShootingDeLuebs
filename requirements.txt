@@ -1,0 +1,4 @@
+Pillow==12.2.0
+pygame==2.6.1
+PyYAML==6.0.3
+robot_hat==2.3.0

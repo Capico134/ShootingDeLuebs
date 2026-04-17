@@ -1,0 +1,25 @@
+scenario:
+  - name: "Programm 12 laden"
+    action: "call_sm_method"
+    wert: ["setProgramm", 12]
+    step_time: 1500
+
+  - name: "Save Attributes"
+    action: "save_sd_attributes"
+    wert: ["./tests/SDexport.json", "version", "SMobjekt.vorbereiten", "SMobjekt.ladenGelb"]
+    step_time: 500
+
+#  - name: "Save all tkVars from SM"
+#    action: "save_sm_tkvars"
+#    wert: "./tests/SMexport.json"
+#    step_time: 500
+
+  - name: "Load all tkVars from SM"
+    actual_method: "compare_sm_tkvars_with_json"
+    wert: "./tests/SMexport.json"
+    expected: {}
+    step_time: 500    
+
+  - name: "GUI schließen"
+    action: "close_gui"
+    step_time: 2000
