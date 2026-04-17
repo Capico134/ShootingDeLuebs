@@ -2,7 +2,7 @@
 
 Diese Datei listet die Urheber und Lizenzen der in **Shooting DeLübs** verwendeten Audio-Assets auf. Ein herzlicher Dank geht an die Community-Mitglieder von Pixabay für die Bereitstellung dieser Ressourcen.
 
-## Audio-Assets
+## Audio-Assets & Icons
 
 | Dateiname im Projekt | Original-Titel / Urheber | Quelle | Lizenz |
 | :--- | :--- | :--- | :--- |
@@ -15,7 +15,7 @@ Diese Datei listet die Urheber und Lizenzen der in **Shooting DeLübs** verwende
 | `PfeifeKurz2.wav` | "Referee Whistle Blow (Gymnasium)" von  **SpliceSound** | [Pixabay](https://pixabay.com/sound-effects/film-special-effects-referee-whistle-blow-gymnasium-6320/) | [Pixabay License](https://pixabay.com/service/license/) |
 | `bumbbumbv2.wav` | Perkussiver Bass-Sound von **DeLübs** | Trommeln auf Keksdose am 24.12.2024 | Same as Project (DeLübs) |
 | `BuzzTicker_early.wav` | "Countdown Boom" & "Air Horn" (Mashup) | [Pixabay (Boom)](https://pixabay.com/sound-effects/film-special-effects-countdown-boom-76577/) & [Pixabay (Air Horn)](https://pixabay.com/sound-effects/film-special-effects-air-horn-273892/) | [Pixabay License](https://pixabay.com/service/license/) |
-
+| `shooting-range.png`   | **Programm-Icon:** "Shooting range" | [Freepik](https://www.flaticon.com/authors/freepik) | [Flaticon](https://www.flaticon.com/)
 ---
 
 ## Hinweise zur Bearbeitung
