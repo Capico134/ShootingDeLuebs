@@ -1018,7 +1018,7 @@ class HighscoreManager:
             print(f"WARNUNG: Netzwerk- oder Zugriffsproblem ({e}).")
             print("Starte mit leerer Liste, Originaldatei bleibt unangetastet.")
         
-    def filter_highscores(self, mode_name=None, sort_by="gesamtpunkte"):
+    def filter_highscores(self, mode_name=None, sort_by="gesamtpunkte"): 
         # Filter nach Modusname
         filtered_data = [entry for entry in self.data if mode_name is None or entry["programm_name"] == mode_name]
         
