@@ -1018,13 +1018,13 @@ class HighscoreManager:
             print(f"WARNUNG: Netzwerk- oder Zugriffsproblem ({e}).")
             print("Starte mit leerer Liste, Originaldatei bleibt unangetastet.")
         
-        def filter_highscores(self, mode_name=None, sort_by="gesamtpunkte"):
-            # Filter nach Modusname
-            filtered_data = [entry for entry in self.data if mode_name is None or entry["programm_name"] == mode_name]
-            
-            # Sortierung nach Gesamtpunkten oder anderen Kriterien
-            #filtered_data.sort(key=lambda x: x.get(sort_by, 0), reverse=True) #ACHTUNG DIESER FILTER WURDE ABGESCHALTET!!!!!!!!!!!!!
-            return filtered_data
+    def filter_highscores(self, mode_name=None, sort_by="gesamtpunkte"):
+        # Filter nach Modusname
+        filtered_data = [entry for entry in self.data if mode_name is None or entry["programm_name"] == mode_name]
+        
+        # Sortierung nach Gesamtpunkten oder anderen Kriterien
+        #filtered_data.sort(key=lambda x: x.get(sort_by, 0), reverse=True) #ACHTUNG DIESER FILTER WURDE ABGESCHALTET!!!!!!!!!!!!!
+        return filtered_data
 
 class DummyDeluebs:
     def __init__(self, root):
