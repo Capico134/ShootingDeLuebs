@@ -948,25 +948,83 @@ class HighscoreManager:
         self.data = []
 
     def save_highscore(self, highscore_entry):
+        """
+        Hängt einen neuen Eintrag an und speichert die Datei extrem sicher 
+        (erst Temp-Datei, dann ersetzen).
+        """
+        # 1. Neuen Eintrag in die Liste im Arbeitsspeicher aufnehmen
         self.data.append(highscore_entry)
-        with open(self.file_path, "w") as file:
-            json.dump(self.data, file, indent=4)
+        
+        # 2. Dateipfad für die temporäre Hilfsdatei festlegen
+        temp_file = self.file_path + ".tmp"
+        
+        try:
+            # 3. Zuerst die kompletten Daten in die temporäre Datei schreiben
+            with open(temp_file, "w", encoding="utf-8") as file:
+                json.dump(self.data, file, indent=4)
+                
+            # 4. Magischer Moment: os.replace ist ein "atomarer" Befehl. 
+            # Er tauscht die alte Datei gegen die neue Temp-Datei in einem Wisch aus.
+            os.replace(temp_file, self.file_path)
+            print("Neuer Highscore erfolgreich und sicher gespeichert.")
+            
+        except OSError as e:
+            # Wenn exakt beim Schreiben (z.B. Schritt 3) das WLAN abbricht!
+            print(f"KRITISCHER FEHLER beim Speichern ({e}). NAS nicht erreichbar?")
+            
+            # Aufräumen: Wir versuchen, die unfertige Temp-Datei zu löschen, 
+            # damit kein Müll liegen bleibt. Die Originaldatei ist dabei völlig sicher!
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except OSError:
+                    pass # Falls das Löschen auch fehlschlägt, ignorieren wir das
 
     def load_highscores(self):
+        """
+        Lädt die Highscores. Wenn etwas schiefgeht (WLAN weg, Datei kaputt, 
+        Datei fehlt), wird eine leere Liste im Speicher erstellt, aber NICHTS 
+        auf die Festplatte geschrieben.
+        """
         try:
-            with open(self.file_path, "r") as file:
-                self.data = [entry for entry in json.load(file) if all(key in entry for key in ["spieler", "programm_name", "punkte_durchgang", "gesamtpunkte", "punkte_durchgang_pl2", "gesamtpunkte_pl2", "timestamp"])]
+            # utf-8 ist wichtig, falls ihr Sonderzeichen oder Umlaute in den Namen habt
+            with open(self.file_path, "r", encoding="utf-8") as file:
+                raw_data = json.load(file)
+                
+            # Deine saubere Logik: Wir behalten nur Einträge, die das korrekte Format haben
+            self.data = [
+                entry for entry in raw_data 
+                if all(key in entry for key in [
+                    "spieler", "programm_name", "punkte_durchgang", 
+                    "gesamtpunkte", "punkte_durchgang_pl2", 
+                    "gesamtpunkte_pl2", "timestamp"
+                ])
+            ]
+            print("Highscores erfolgreich geladen.")
+            
         except FileNotFoundError:
+            # Normalfall beim allerersten Start (Datei gibt es noch nicht)
             self.data = []
-            print('NOOOO')
-    
-    def filter_highscores(self, mode_name=None, sort_by="gesamtpunkte"):
-        # Filter nach Modusname
-        filtered_data = [entry for entry in self.data if mode_name is None or entry["programm_name"] == mode_name]
+            print("Bisher keine Highscore-Datei gefunden. Starte mit leerer Liste.")
+            
+        except json.JSONDecodeError:
+            # Datei ist da, aber der Inhalt ist kein gültiges JSON (z.B. korrupt)
+            self.data = []
+            print("FEHLER: Highscore-Datei ist beschädigt. Starte im Speicher mit leerer Liste.")
+            
+        except OSError as e:
+            # Der Netzwerk-/NAS-Abbruch! Das System kommt gerade nicht an den Pfad.
+            self.data = []
+            print(f"WARNUNG: Netzwerk- oder Zugriffsproblem ({e}).")
+            print("Starte mit leerer Liste, Originaldatei bleibt unangetastet.")
         
-        # Sortierung nach Gesamtpunkten oder anderen Kriterien
-        #filtered_data.sort(key=lambda x: x.get(sort_by, 0), reverse=True) #ACHTUNG DIESER FILTER WURDE ABGESCHALTET!!!!!!!!!!!!!
-        return filtered_data
+        def filter_highscores(self, mode_name=None, sort_by="gesamtpunkte"):
+            # Filter nach Modusname
+            filtered_data = [entry for entry in self.data if mode_name is None or entry["programm_name"] == mode_name]
+            
+            # Sortierung nach Gesamtpunkten oder anderen Kriterien
+            #filtered_data.sort(key=lambda x: x.get(sort_by, 0), reverse=True) #ACHTUNG DIESER FILTER WURDE ABGESCHALTET!!!!!!!!!!!!!
+            return filtered_data
 
 class DummyDeluebs:
     def __init__(self, root):
