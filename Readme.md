@@ -4,7 +4,7 @@ Das interaktive computergestütze Zielsystem für Sportschützen zum Reaktions-T
 *Shooting DeLübs* entstand als Vater-Sohn-Projekt in der Weihnachtszeit 2024. Was beim Weihnachtsessen mit einem Raspberry Pi 5 und einer Keksdose als Sound-Quelle begann, ist heute eine ausgereifte Trainings-Suite für moderne Schießanlagen (Dreh- und Klappscheiben).
 
 ## 📺 Media & Story
-Folge dem Projekt auf YouTube für Shorts über neue Funktionen und Dev-Logs. Hinterlasst auch gerne einen Kommentar in den Videos oder auf der Homepage!
+Folge dem Projekt auf YouTube, um über neue Funktionen Informiert zu werden. Hinterlasst auch gerne einen Kommentar in den Videos oder auf der Homepage!
 * 🎥 **YouTube-Shorts:** [(https://www.youtube.com/@DeLuebs)]
 * ℹ️ **Homepage:** [https://DeLuebs.de/]
 
