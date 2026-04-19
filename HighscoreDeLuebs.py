@@ -632,80 +632,7 @@ class HighscoreDeluebs:
                                         yaml_lines.append(f"    step_time: 10")       
                                         yaml_lines.append("")
 
-                                    
-#                                    # SCHRITT 1: Programm laden
-#                                    yaml_lines.append(f"  - name: \"Programm {prog_index} laden: {base_programm_name}\"")
-#                                    yaml_lines.append(f"    actual: \"lambda: self.app.SMobjekt.setProgramm({prog_index})\"")
-#                                    yaml_lines.append(f"    expected:")
-#                                    yaml_lines.append(f"    step_time: 300")
-#                                    yaml_lines.append("")
-#
-#                                    # SCHRITT 1.1: Replay Nummer setzen
-#                                    replay_id_str = f"Rec\u200A{match_id}"
-#                                    yaml_lines.append(f"  - name: \"Replay-ID setzen ({replay_id_str})\"")
-#                                    yaml_lines.append(f"    actual: \"lambda: self.app.SMobjekt.set_replay_match('{replay_id_str}')\"")
-#                                    yaml_lines.append(f"    expected: null")
-#                                    yaml_lines.append(f"    step_time: 250")
-#                                    yaml_lines.append("")            
-#
-#
-#                                    # SCHRITT 1.2: Spielernamen aus der Highscore auslesen und setzen
-#                                    sp1 = entry.get("spieler", "Spieler 1")
-#                                    sp2 = entry.get("spieler2", "Spieler 2")
-#                                    if sp2 is None: 
-#                                        sp2 = "" # Verhindert, dass None als Text "None" gesetzt wird
-#
-#                                    yaml_lines.append(f"  - name: \"Spielernamen aus Highscore setzen\"")
-#                                    # Mit der Mute-Taste (system_update_laeuft), damit kein (modifiziert) Tag entsteht!
-#                                    yaml_lines.append(f"    actual: \"lambda: [setattr(self.app.SMobjekt, 'system_update_laeuft', True), self.app.SMobjekt.spieler.set('{sp1}'), self.app.SMobjekt.spieler2.set('{sp2}'), setattr(self.app.SMobjekt, 'system_update_laeuft', False)]\"")
-#                                    yaml_lines.append(f"    expected: [null, null, null, null]")
-#                                    yaml_lines.append(f"    step_time: 10")
-#                                    yaml_lines.append("")
-#
-#
-#
-#                                    # SCHRITT 1.5: Dev-Override & Smart-Fast-Forward
-#                                    vorb = entry.get("vorbereiten", 5)
-#                                    lg   = entry.get("ladenGelb", 3)
-#                                    #print("lg: "+str(lg))
-#                                    
-#                                    time_saved_ms = 0
-#                                    first_shot_done = False # Wichtig für die Zeit-Korrektur später
-#                                    
-#                                    if "(dev)" in programm_name:
-#                                        # DEV-Mode: Extreme Beschleunigung wie bisher
-#                                        wdh = entry.get("wiederholungen", 2)
-#                                        yaml_lines.append(f"  - name: \"Dev-Override: Fast-Forward (Werte erzwingen)\"")
-#                                        yaml_lines.append(f"    actual: \"lambda: [self.app.SMobjekt.vorbereiten.set(1), self.app.SMobjekt.ladenGelb.set(1), self.app.SMobjekt.wiederholungen.set({wdh})]\"")
-#                                        yaml_lines.append(f"    expected: [null, null, null]")
-#                                        yaml_lines.append(f"    step_time: 10")
-#                                        yaml_lines.append("")
-#                                    else:
-#                                        # SMART-SPEEDUP für normale, echte Matches
-#                                        # Wir deckeln die Zeiten auf maximal 3 Sekunden
-#                                        #new_vorb = min(vorb, 3)
-#                                        new_lg = min(lg, 3)
-#                                        
-#                                        # Berechnen, wie viele Sekunden wir der Realität klauen
-#                                        #time_saved_s = (vorb - new_vorb) + (lg - new_lg)
-#                                        time_saved_s =  (lg - new_lg)
-#                                        time_saved_ms = int(time_saved_s * 1000)
-#                                        #print(time_saved_ms)
-#                                        
-#                                        if time_saved_ms > 0:
-#                                            yaml_lines.append(f"  - name: \"Smart-Override: Wartezeiten auf je max 3s reduziert\"")
-#                                            #yaml_lines.append(f"    actual: \"lambda: [self.app.SMobjekt.vorbereiten.set({new_vorb}), self.app.SMobjekt.ladenGelb.set({new_lg})]\"")
-#                                            #yaml_lines.append(f"    expected: [null, null]")
-#                                            yaml_lines.append(f"    actual: \"lambda:  self.app.SMobjekt.ladenGelb.set({new_lg})\"")
-#                                            yaml_lines.append(f"    expected: null")                                            
-#                                            yaml_lines.append(f"    step_time: 10")
-#                                            yaml_lines.append("")
-#                                            
-#                                    yaml_lines.append(f"  - name: \"Modifiziert-Tag entfernen\"")
-#                                    yaml_lines.append("    actual: 'lambda: self.app.SMobjekt.remove_tag(self.app.SMobjekt.Tag.MODIFIZIERT)'")
-#                                    yaml_lines.append(f"    expected:")
-#                                    yaml_lines.append(f"    step_time: 10")       
-#                                    yaml_lines.append("")                                    
+                             
 
                                     # SCHRITT 2: Countdown starten
                                     yaml_lines.append(f"  - name: \"Countdown starten\"")
@@ -714,40 +641,84 @@ class HighscoreDeluebs:
                                     yaml_lines.append("")
 
                                     # --- MATCH TIMELINE VERARBEITEN ---
-                                    current_cycle = -1  # Tracker für den Zykluswechsel
+                                    # PASS 1: Lookahead für Zyklus-Grenzen (Sicherheitsnetz)
+                                    # Wir ermitteln vorab, wann JEDER Zyklus in der neuen Replay-Zeit startet.
+                                    cycle_start_new = {}
+                                    for ev in timeline:
+                                        cz = max(0, ev.get('z', -1))
+                                        # Wir merken uns den ersten bekannten Schuss eines jeden Zyklus als "spätesten Startpunkt"
+                                        if cz not in cycle_start_new:
+                                            cycle_start_new[cz] = max(0, int(ev.get('t', 0.0) * 1000) - (cz * time_saved_ms))
+                                            
+                                    # Wenn wir einen echten ACHTUNG-Treffer finden, ist der noch präziser!
+                                    for ev in timeline:
+                                        if ev.get('m') == "ACHTUNG":
+                                            cz = max(0, ev.get('z', -1))
+                                            cycle_start_new[cz] = max(0, int(ev.get('t', 0.0) * 1000) - (cz * time_saved_ms))
+
+                                    # PASS 2: Echte Verarbeitung
+                                    last_t_new_ms = 0
+                                    last_m = ""
                                     
                                     for ev in timeline:
                                         action_type = ev.get('a', '')
-                                        t = ev.get('t', 0.0)
-                                        z = ev.get('z', -1) # Den aktuellen Zyklus aus dem Event holen
-                                        
                                         
                                         # Nur Schüsse (Action) in den Robot-Test übernehmen
                                         if action_type == "shoot":
-                                            # Zeitdifferenz in ms berechnen
-                                            delta_ms = int(max(0, t - last_t) * 1000)
-                                            last_t = t  # Update HIER, damit die Pausen zwischen den Schüssen exakt stimmen
+                                            t = ev.get('t', 0.0)
+                                            z = max(0, ev.get('z', -1))
+                                            m = ev.get('m', '')
                                             
-                                            #Kommentar = "YAML-Export:"
-                                            # --- NEU: Zeit-Korrektur für den allerersten Schuss JEDES Zyklus ---
-                                            if z != current_cycle and time_saved_ms > 0:
-                                                # Wir ziehen die gestrichene Wartezeit ab
-                                                delta_ms = max(0, delta_ms - time_saved_ms)
-                                                current_cycle = z  # Zyklus als "abgearbeitet" markieren
-                                                #Kommentar+=(f" delta_ms {delta_ms} time_saved_ms {time_saved_ms}")
-                                                #print(f"YAML-Export: RAPANTE")
-                                            # -------------------------------------------------------------------
-
-                                            # --- NEU: Den Puffer (Zeitschulden) abbauen ---
+                                            t_orig_ms = int(t * 1000)
+                                            
+                                            if m in ["FEUER", "ACHTUNG"]:
+                                                # --- 1. ABSOLUTE SYNCHRONISATION ---
+                                                t_new_ms = max(0, t_orig_ms - (z * time_saved_ms))
+                                            else:
+                                                # --- 2. INTELLIGENTE GRENZWERT-STAUCHUNG (LADEN) ---
+                                                # Wo würde der Schuss landen, wenn die Ladezeit normal weiterliefe?
+                                                t_ideal_uncompressed = max(0, t_orig_ms - (z * time_saved_ms))
+                                                
+                                                if time_saved_ms > 0:
+                                                    # Wann startet der nächste Zyklus im Replay?
+                                                    t_next_cycle = cycle_start_new.get(z + 1)
+                                                    
+                                                    if t_next_cycle is not None:
+                                                        # Der Schuss MUSS vor dem nächsten Zyklus passieren.
+                                                        # Wir setzen eine harte Grenze: 100ms bevor ACHTUNG wieder losgeht.
+                                                        t_safe_max = t_next_cycle - 100
+                                                        
+                                                        # Wenn der Treffer früh fällt (die ersten 2 Sekunden deines Beispiels), 
+                                                        # greift t_ideal. Ist er zu spät, klatscht er gegen t_safe_max!
+                                                        t_new_ms = min(t_ideal_uncompressed, t_safe_max)
+                                                    else:
+                                                        # Letzter Zyklus des Spiels (kein Nachfolger)
+                                                        if last_m == "LADEN":
+                                                            t_new_ms = min(t_ideal_uncompressed, last_t_new_ms + 500)
+                                                        else:
+                                                            t_new_ms = t_ideal_uncompressed
+                                                else:
+                                                    t_new_ms = t_ideal_uncompressed
+                                            
+                                            # --- SICHERHEIT: Maschinen-Cooldown garantieren ---
+                                            # Das Spiel verschluckt Treffer, die zu schnell kommen. 
+                                            # Wir erzwingen z.B. 300ms Abstand (inkl. Puffer).
+                                            min_cooldown = 300 
+                                            t_new_ms = max(last_t_new_ms + min_cooldown, t_new_ms)
+                                            
+                                            # Das finale Delta für diese Aktion berechnen
+                                            delta_ms = t_new_ms - last_t_new_ms
+                                            last_t_new_ms = t_new_ms
+                                            last_m = m
+                                            
+                                            # --- Puffer (Zeitschulden aus Assertions) abbauen ---
                                             if time_debt_ms > 0:
-                                                # Wir können maximal so viel abbauen, wie wir Zeit bis zum Schuss haben
-                                                abbau = min(delta_ms, time_debt_ms) 
-                                                delta_ms = delta_ms - abbau         # Schuss vorverlegen
-                                                time_debt_ms = time_debt_ms - abbau # Schulden reduzieren
-
-                                            
+                                                abbau_debt = min(delta_ms, time_debt_ms) 
+                                                delta_ms -= abbau_debt         
+                                                time_debt_ms -= abbau_debt 
+                                                
                                             wert = ev.get('v', 0)
-                                            original_state = ev.get("m")  # Holt "FEUER", "LADEN", "PLAYER1" etc. aus dem JSON
+                                            original_state = m
                                             
                                             # SCHRITT 3: Aktion (Der Schuss) komplett ausgeschrieben
                                             yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")

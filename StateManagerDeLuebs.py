@@ -445,7 +445,7 @@ class StateManager:
                 else: 
                     #HardwareDeluebs
                     self.buttonResetClick()
-                    if self.saveScore.get() == 1 and self.aktuelle_replay_id is None: 
+                    if self.saveScore.get() == 1:#  and self.aktuelle_replay_id is None: 
                         # 1. Highscore speichern und die Daten "auffangen"
                         hs_entry = self.SDeluebs.KSobjekt.SaveHighscore_durchgang() 
                         # (Hinweis: Stelle sicher, dass SaveHighscore_durchgang das hs_entry auch mit 'return' an diese Stelle zurückgibt!)
