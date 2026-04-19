@@ -213,6 +213,7 @@ class StateManager:
             self._state = new_state
             #self.SDeluebs.root.after(0, self._apply_state_ui, new_state)
             self._apply_state_ui(new_state)
+            self.SDeluebs.KSobjekt.append_event_snapshot("state_change")#,new_state.value[0])
             
             #self.gamestate_stringvar.set(new_state.value)
             #self.SDeluebs.MyCanvas['background'] = new_state.color
@@ -424,6 +425,7 @@ class StateManager:
                         
                     #Hier Wechsel zu Feuer
                     elif (self.get_state()==GameState.ACHTUNG): 
+                        self.SDeluebs.KSobjekt.init_zyklus()
                         self.set_state(GameState.FEUER)
                         self.stand=self.feuer.get()
                         #Anpassen des Zyklus (hierher wegen Event log)
@@ -435,11 +437,8 @@ class StateManager:
                         self.SDeluebs.update_graphic()
                         if self.ton.get()==1: self.SDeluebs.sound0.play()
                         #HardwareDeLuebs
-                        self.SDeluebs.KSobjekt.Reset_zyklus() # Das muss hier möglichst spät sein, damit die Zeitberechnung erst hier beginnt.
-                        self.SDeluebs.KSobjekt.init_zyklus()
                         if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos()    
-                        #Eventlog
-                        self.SDeluebs.KSobjekt.append_event_snapshot("feuer_start")                
+                        self.SDeluebs.KSobjekt.Reset_zyklus() # Das muss hier möglichst spät sein, damit die Zeitberechnung erst hier beginnt.
                     
                     self.SDeluebs.root.after(int(1000-self.zeitverlust_messung()), self.buttonCountdownClick)    
                     
