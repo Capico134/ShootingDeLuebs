@@ -480,7 +480,7 @@ class Klappscheibe:
         self.verwendete_zeit = -1 #Für survival_modus
         self.jaeger_wahl = -1 #Für Jägermodus
         self.ReferenzZeit = time.monotonic()
-        self.LEDsOff()
+        #self.LEDsOff()
 
     def Reset_durchgang(self):
         self.Reset_zyklus()
