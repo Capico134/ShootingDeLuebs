@@ -540,7 +540,14 @@ class HighscoreDeluebs:
                                         continue 
 
                                     # --- METADATEN AUSLESEN ---
-                                    metadata = geladene_daten.get("metadata", entry) 
+                                    # Sicherstellen, dass wir nicht auf einer Liste .get() aufrufen
+                                    if isinstance(geladene_daten, dict):
+                                        # Neues Format: Metadaten stecken in der Datei
+                                        metadata = geladene_daten.get("metadata", entry) 
+                                    else:
+                                        # Altes Format: Wir nehmen die Infos aus dem Highscore-Eintrag (entry)
+                                        metadata = entry 
+
                                     is_kaenguru = metadata.get("kaenguru_modus", 0) == 1
                                     is_zufall = metadata.get("zufall", 0) == 1
 
