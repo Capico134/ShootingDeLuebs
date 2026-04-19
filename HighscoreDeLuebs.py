@@ -668,8 +668,28 @@ class HighscoreDeluebs:
                                     
                                     for ev in timeline:
                                         action_type = ev.get('a', '')
-                                        
-                                        # Nur Schüsse (Action) in den Robot-Test übernehmen
+                                        t = ev.get('t', 0.0)
+                                        z = max(0, ev.get('z', -1))
+                                        m = ev.get('m', '')
+                                        t_orig_ms = int(t * 1000)
+
+                                        # --- NEU: INITIALER ZYKLUS-SYNC (FEUER START) ---
+                                        if action_type == "feuer_start":
+                                            # Absolute Zeit berechnen (gleiche Logik wie bei Schüssen)
+                                            t_new_ms = max(0, t_orig_ms - (z * time_saved_ms))
+                                            # Sicherstellen, dass wir nicht in der Zeit zurückspringen
+                                            t_new_ms = max(last_t_new_ms + 10, t_new_ms)
+                                            delta_ms = t_new_ms - last_t_new_ms
+                                            last_t_new_ms = t_new_ms
+                                            w_init = ev.get('w', [])
+                                            if w_init:
+                                                yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
+                                                yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                yaml_lines.append(f"    wert: {w_init}")
+                                                yaml_lines.append(f"    step_time: {delta_ms}")
+                                                yaml_lines.append("")
+
+                                        # Schüsse (Action) in den Robot-Test übernehmen
                                         if action_type == "shoot":
                                             t = ev.get('t', 0.0)
                                             z = max(0, ev.get('z', -1))

@@ -437,7 +437,9 @@ class StateManager:
                         #HardwareDeLuebs
                         self.SDeluebs.KSobjekt.Reset_zyklus() # Das muss hier möglichst spät sein, damit die Zeitberechnung erst hier beginnt.
                         self.SDeluebs.KSobjekt.init_zyklus()
-                        if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos()                    
+                        if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos()    
+                        #Eventlog
+                        self.SDeluebs.KSobjekt.append_event_snapshot("feuer_start")                
                     
                     self.SDeluebs.root.after(int(1000-self.zeitverlust_messung()), self.buttonCountdownClick)    
                     

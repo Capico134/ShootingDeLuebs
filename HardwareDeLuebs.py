@@ -621,28 +621,48 @@ class Klappscheibe:
         if Modus is not None:
             if (not w_liste) or (not self.SM.get_state().is_action_state()):
                 return  # Nichts tun, wenn keine Ziele definiert sind oder der Treffer nicht während der zulässigen Zeit war
+            # 0. anzahlZiele auslesen
+            anzahlZiele = 1 #Wenn kein sinvoller Wert bei scheibenServo angegeben ist, dann nur 1 Ziel.
+            if self.SM.scheibenServo.get() > 0 and self.SM.scheibenServo.get() < 5: anzahlZiele = self.SM.scheibenServo.get()
             # 1. Den internen Status der Engine knallhart überschreiben
             self.ziel_wahl = list(w_liste)
-            # 2. Alle 5 LEDs sicherheitshalber ausschalten
-            for i in range(5):
-                self.SetBlinking(i, False)
-                self.SetLED(i, False)
-            # 3. Die korrekten historischen LEDs wieder einschalten 
-            if Modus == "gegner_zufall":##################gegner_zufall#####################
-                #Player 1:
-                self.SetLED(self.ziel_wahl[0],True) 
-                if anzahlZiele>1: self.SetLED(self.ziel_wahl[1],True) 
-                #Player 2:
-                self.SetBlinking(self.ziel_wahl[2],True)          
-                if anzahlZiele>1: self.SetBlinking(self.ziel_wahl[3],True)    
-            if Modus == "zufall": ##################zufall#####################                
+            # 2. SOLL-ZUSTAND BERECHNEN (Verhindert das Timer-Doppelblinken!)
+            # Wir bereiten zwei Schablonen vor, wie die LEDs aussehen sollen.
+            soll_led = [False] * 5
+            soll_blink = [False] * 5
+            
+            # Hilfsfunktion, um Fehler durch den Wert "-1" (oder Out-of-Bounds) zu vermeiden
+            def safe_set(listen_typ, idx):
+                if 0 <= idx < 5:
+                    listen_typ[idx] = True
+
+            # Die Schablonen gemäß deinem Modus füllen
+            if Modus == "gegner_zufall":
+                if len(self.ziel_wahl) > 0: safe_set(soll_led, self.ziel_wahl[0])
+                if len(self.ziel_wahl) > 1: safe_set(soll_led, self.ziel_wahl[1])     # P1, 2. Ziel
+                if len(self.ziel_wahl) > 2: safe_set(soll_blink, self.ziel_wahl[2])
+                if len(self.ziel_wahl) > 3: safe_set(soll_blink, self.ziel_wahl[3])   # P2, 2. Ziel
+
+            elif Modus == "zufall": 
                 for wert in self.ziel_wahl:
-                    self.SetLED(wert,True)
-            if Modus == "kaenguru":##################KÄNGURU#####################
-                self.SetLED(self.ziel_wahl[0], True)         
-                if self.SM.gegner_modus.get()==1:
-                    self.SetBlinking(self.ziel_wahl[1],True)   
-                print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")            
+                    safe_set(soll_led, wert)
+
+            elif Modus == "kaenguru":
+                if len(self.ziel_wahl) > 0: safe_set(soll_led, self.ziel_wahl[0])         
+                if self.SM.gegner_modus.get()==1 and len(self.ziel_wahl) > 1:
+                    safe_set(soll_blink, self.ziel_wahl[1])   
+            
+            # 3. SMART UPDATE: Nur schalten, was abweicht!
+            for i in range(5):
+                # Blinken abgleichen
+                if self.blinking[i] != soll_blink[i]:
+                    self.SetBlinking(i, soll_blink[i])
+                
+                # Dauerleuchten abgleichen (aber nur, wenn die LED nicht blinken soll)
+                if not soll_blink[i]:
+                    if self.LED_status[i] != soll_led[i]:
+                        self.SetLED(i, soll_led[i])
+            print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")            
 
     def SetLED(self, Nr: int, LEDswitch: bool): #Einzelne LED schalten
         if LEDswitch: self.LEDs[Nr].angle(90)
