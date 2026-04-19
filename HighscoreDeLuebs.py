@@ -544,9 +544,15 @@ class HighscoreDeluebs:
                                             "Ein Replay ist nur für aktuell existierende Programme möglich.")
                                         continue # Überspringt dieses Match und macht mit dem nächsten markierten weiter
 
+                                    # --- MODUS FÜR YAML-SYNC ERMITTELN ---
+                                    # Wir holen die Metadaten. Fallback auf entry, je nach Format-Version
+                                    metadata = geladene_daten.get("metadata", entry) 
+                                    is_kaenguru = metadata.get("kaenguru_modus", 0) == 1
+                                    is_zufall = metadata.get("zufall", 0) == 1
+                                    synced_cycles = set() # Merker für normale Zufallsmodi
+
                                     # --- INITIALISIERUNG IM YAML SCHREIBEN ---
 
-# --- INITIALISIERUNG IM YAML SCHREIBEN ---
                                     
                                     # SCHRITT 1: Programm laden
                                     yaml_lines.append(f"  - name: \"Programm {prog_index} laden: {base_programm_name}\"")
@@ -728,8 +734,19 @@ class HighscoreDeluebs:
                                             yaml_lines.append("")
                                             #print(Kommentar)
 
-                                            # SCHRITT 4: Assertions 
+                                            # SCHRITT 3B:--- NEU: ZUFALL ÜBERSCHREIBEN (HISTORIE ERZWINGEN) ---
+                                            w_historisch = ev.get('w', [])
+                                            if w_historisch:
+                                                if is_kaenguru:
+                                                    # Känguru: Das Ziel ändert sich nach jedem Schuss. 
+                                                    # Wir setzen das neue Ziel für den NÄCHSTEN Schuss.
+                                                    yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru): ziel auf {w_historisch}\"")
+                                                    yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                    yaml_lines.append(f"    wert: {w_historisch}")
+                                                    yaml_lines.append(f"    step_time: 0")
+                                                    yaml_lines.append("")                                            
 
+                                            # SCHRITT 4: Assertions 
                                             # --- NEU: Die direkte Assertion danach (OHNE eval) ---
                                             yaml_lines.append(f"  - name: \"Prüfe Status nach Schuss auf {wert}\"")
                                             yaml_lines.append(f"    actual_attr: \"get_state\"")

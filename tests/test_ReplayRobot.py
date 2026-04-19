@@ -206,33 +206,12 @@ class TestShootingDeLuebsGUI(unittest.TestCase):
         
         return result
 
-    def set_ziel_wahl(self, w_liste):
+    def set_ziel_wahl(self, *w_liste):
         """
         Überschreibt den Zufall der Engine mit den historischen Werten aus dem Replay
         und korrigiert sofort die LEDs, bevor der Spieler es sieht.
         """
-        if not w_liste:
-            return  # Nichts tun, wenn keine Ziele definiert sind
-
-        # 1. Den internen Status der Engine knallhart überschreiben
-        self.app.KSobjekt.ziel_wahl = list(w_liste)
-
-        # 2. Alle 5 LEDs sicherheitshalber ausschalten
-        for i in range(5):
-            self.app.KSobjekt.SetLED(i, False)
-            self.app.KSobjekt.SetBlinking(i, False)
-
-        # 3. Die korrekten historischen LEDs wieder einschalten
-        if len(w_liste) > 0 and w_liste[0] != -1:
-            self.app.KSobjekt.SetLED(w_liste[0], True)      # Spieler 1: Leuchten
-            
-        if len(w_liste) > 1 and w_liste[1] != -1:
-            self.app.KSobjekt.SetBlinking(w_liste[1], True) # Spieler 2: Blinken
-        
-        # Kleines Feedback für die Konsole beim Testlauf
-        print(f"[TEST] Ziel-Sequenz erfolgreich gesetzt: {w_liste}")
-
-
+        self.app.KSobjekt.set_ziel_wahl_replay(w_liste)
 
     def remove_modifiziert_tag(self):
         """Entfernt das Modifiziert-Tag sicher aus dem StateManager."""

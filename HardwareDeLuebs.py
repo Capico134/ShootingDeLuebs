@@ -604,7 +604,46 @@ class Klappscheibe:
         self.match_timeline.append(snapshot)    
     #return snapshot
 
-        
+    def set_ziel_wahl_replay(self, w_liste):
+        """
+        Synchronisiert den physischen Zustand (LEDs) mit der historischen Zielwahl.
+        Unterscheidet zwischen Positions-Maps (Wechsel) und ID-Listen (Zufall/Känguru).
+        Wird aktuell nur angewandt für Zufallsmodi.
+        """
+        Modus = None
+        if   self.SM.zufall.get()==1 and self.SM.gegner_modus.get()==1:  Modus = "gegner_zufall" #Gegnermodus mit Zufallsmodus       
+        elif self.SM.zufall.get()==1:                                    Modus = "zufall"        #Zufalls-Modus
+        #elif self.SM.jaeger_modus.get()==1:                             Modus = "jaeger"        #Jäger-Modus
+        elif self.SM.kaenguru_modus.get()==1:                            Modus = "kaenguru"      #Känguru-Modus
+        #elif self.SM.reihe.get()==1 and  self.SM.gegner_modus.get()==1: Modus = "wechsel"      #Wechsel-Modus
+        #elif self.SM.gegner_modus.get()==1:                             Modus = "gegner"       #Gegner-Modus
+        #else:                                                           Modus = "treffer"      #Klappscheibe          
+        if Modus is not None:
+            if (not w_liste) or (not self.SM.get_state().is_action_state()):
+                return  # Nichts tun, wenn keine Ziele definiert sind oder der Treffer nicht während der zulässigen Zeit war
+            # 1. Den internen Status der Engine knallhart überschreiben
+            self.ziel_wahl = list(w_liste)
+            # 2. Alle 5 LEDs sicherheitshalber ausschalten
+            for i in range(5):
+                self.SetBlinking(i, False)
+                self.SetLED(i, False)
+            # 3. Die korrekten historischen LEDs wieder einschalten 
+            if Modus == "gegner_zufall":##################gegner_zufall#####################
+                #Player 1:
+                self.SetLED(self.ziel_wahl[0],True) 
+                if anzahlZiele>1: self.SetLED(self.ziel_wahl[1],True) 
+                #Player 2:
+                self.SetBlinking(self.ziel_wahl[2],True)          
+                if anzahlZiele>1: self.SetBlinking(self.ziel_wahl[3],True)    
+            if Modus == "zufall": ##################zufall#####################                
+                for wert in self.ziel_wahl:
+                    self.SetLED(wert,True)
+            if Modus == "kaenguru":##################KÄNGURU#####################
+                self.SetLED(self.ziel_wahl[0], True)         
+                if self.SM.gegner_modus.get()==1:
+                    self.SetBlinking(self.ziel_wahl[1],True)   
+                print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")            
+
     def SetLED(self, Nr: int, LEDswitch: bool): #Einzelne LED schalten
         if LEDswitch: self.LEDs[Nr].angle(90)
         else:         self.LEDs[Nr].angle(-40)
@@ -614,8 +653,7 @@ class Klappscheibe:
         for i in range(5): 
             self.SetBlinking(i,False) 
             self.SetLED(i,False)
-    
-    #WARUM FUNKTIONIERT DIESE METHODE WIE EIN TOGGLE???
+
     def SetBlinking(self, Nr: int, LEDswitch: bool): #Einzelne LED zum blinken bringen
         self.blinking[Nr] = LEDswitch
         if self.blinking[Nr]==True:
