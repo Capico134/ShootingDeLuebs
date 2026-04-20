@@ -377,6 +377,17 @@ class HighscoreDeluebs:
 
 
         def show_selected_highscore_logs():
+            # Hilfsfunktion für saubere Listen-Anzeige (Entfernt -1 und Klammern)
+            def clean_l(lst):
+                if not lst: return ""
+                return ", ".join([str(x) for x in lst if x != -1])       
+
+            # Header-Template (etwas schlanker für bessere Übersicht)
+            mini_h = f"{'Zeit':>8} | {'Ref':>7} | {'Zyk':^4} | {'Aktion':<8} | {'Ziel':^4} | {'Zielwahl':^18} | {'P1-Treffer':^18} | {'P2-Treffer':^18}\n"
+            sep = "-" * len(mini_h)
+            
+            last_action_was_state = False # Merker, um Leerzeilen zu unterdrücken
+            
             selected_items = tree.selection()
             for item in selected_items:
                 values = tree.item(item, "values")
@@ -423,33 +434,44 @@ class HighscoreDeluebs:
                                     event_details = "DETAILLIERTES EVENT-LOG: "+ f"MATCH{match_id:06d}"+"\n"
                                     
                                     # Tabellen-Header erstellen (Modus auf 12 verbreitert für längere Namen)
-                                    header = f"{'Zeit':>8} | {'Ref':>6} | {'Zykl':^4} | {'Modus':^8} | {'Ziel':^4} | {'Zielwahl':^20} | {'P1-Treffer':^20} | {'P2-Treffer':^20}"
-                                    separator = "-" * len(header)
-                                    
-                                    event_details += f"{header}\n{separator}\n"
+                                    #header = f"{'Zeit':>8} | {'Ref':>6} | {'Zykl':^4} | {'Modus':^8} | {'Ziel':^4} | {'Zielwahl':^20} | {'P1-Treffer':^20} | {'P2-Treffer':^20}"
+                                    #separator = "-" * len(header)
+                                    #event_details += f"{header}\n{separator}\n"
+                                    event_details += "\n" + mini_h + sep +"\n"
                                     
                                     # Zeilen generieren
                                     for ev in timeline:
-                                        # Zeiten mit Nachkommastellen runden
-                                        t = f"{ev.get('t', 0):.2f}s"
-                                        tref = f"{ev.get('tref', 0):.2f}s"
-                                        
-                                        # Reine Werte holen (OHNE Breiten-Formatierung)
+                                        action = ev.get('a', '')
+                                        m = ev.get('m', '')
+                                        t = f"{ev.get('t', 0):>7.2f}s"
+                                        tref = f"{ev.get('tref', 0):>6.2f}s"
                                         zyk = ev.get('z', 0)
-                                        modus = str(ev.get('m', '')).strip() # Ein strip() schadet hier zur Sicherheit nie!
+                                    
+                                        if action == "state_change":
+                                                # Zeilenumbruch nur vor neuen Blöcken (LADEN nach FEUER)
+                                                prefix = "" if not last_action_was_state and m == "LADEN" else ""
+                                                
+                                                # State-Wechsel Zeile: Zeitstempel beibehalten, dann die Phase klar benennen
+                                                # Wir nutzen die Spaltenbreite von 'Aktion' (8) für den Status-Namen
+                                                line = f"{prefix}{t} | {tref} | {zyk:^4} | {m[:8]:<8} | {' ':^4} | {'(Statuswechsel)':^18} | {' ':^18} | {' ':^18}\n"
+                                                event_details += line
+                                                
+                                                # Header-Wiederholung nur bei ACHTUNG für die Orientierung
+                                                if m == "ACHTUNG":
+                                                    event_details += "\n" + mini_h + sep  + "\n"
+                                                
+                                                last_action_was_state = True
                                         
-                                        # Getroffenes Ziel (v). Falls es kein Schuss war oder 'v' fehlt, zeige '-'
-                                        ziel_getroffen = ev.get('v', '-')
-                                        
-                                        # Listen in reine Strings umwandeln
-                                        zielwahl = str(ev.get('w', []))
-                                        p1_treffer = str(ev.get('p1_t', []))
-                                        p2_treffer = str(ev.get('p2_t', []))
-                                        
-                                        # HIER passiert die Magie: Strikt nach festen Breiten formatieren
-                                        line = f"{t:>8} | {tref:>6} | {zyk:^4} | {modus:^8} | {ziel_getroffen:^4} | {zielwahl:^20} | {p1_treffer:^20} | {p2_treffer:^20}\n"
-                                        event_details += line
-
+                                        elif action == "shoot":
+                                            v = ev.get('v', '-')
+                                            w = clean_l(ev.get('w', []))
+                                            p1 = clean_l(ev.get('p1_t', []))
+                                            p2 = clean_l(ev.get('p2_t', []))
+                                    
+                                            # Kompakte Datenzeile
+                                            line = f"{t} | {tref} | {zyk:^4} | {'SHOT':<8} | {v:^4} | {w:^18} | {p1:^18} | {p2:^18}\n"
+                                            event_details += line
+                                            last_action_was_state = False
                                         
                                 except Exception as e:
                                     event_details = f"\n[Fehler beim Laden des Event-Logs: {e}]"
@@ -666,9 +688,10 @@ class HighscoreDeluebs:
                                                     yaml_lines.append(f"    action: \"set_ziel_wahl\"")
                                                     yaml_lines.append(f"    wert: {w_init}")
                                                     # Hier leeren wir unseren Zeit-Stapel aus!
-                                                    yaml_lines.append(f"    step_time: {accumulated_delay_ms}")
+                                                    yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
                                                     yaml_lines.append("")
                                                     accumulated_delay_ms = 0 # Stapel resetten
+                                                    time_debt_ms += 50
                                                     
                                         elif action_type == "shoot":
                                             # Die Schuss-Wartezeit setzt sich aus dem Original-Abstand 

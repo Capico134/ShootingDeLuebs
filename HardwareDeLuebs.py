@@ -150,7 +150,7 @@ class Klappscheibe:
         else: self.ziel_wahl = [] 
                 
     
-    def set_treffer(self,infoaboutshit,key: int):
+    def set_treffer(self, key: int):
         player = self.players[0]
         welcherSchuss = self.welcherSchuss(player.treffer)
         if self.SM.get_state().is_action_state():
@@ -184,7 +184,7 @@ class Klappscheibe:
                             self.set_ueberlebt()
             else: self.checkVerloren(True)             
     
-    def set_treffer_jaeger(self,infoaboutshit,key: int):
+    def set_treffer_jaeger(self, key: int):
         if self.SM.get_state().is_action_state():
             #Prüfen wer Jäger und Gejagter ist
             if self.players[0].is_jaeger: 
@@ -235,7 +235,7 @@ class Klappscheibe:
                     set_punkte(jaeger, welcherSchuss, self.SM.feuer.get(), self.ReferenzZeit, key) #Punkte zuweisen!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     self.SetLED(key,False)             
  
-    def set_treffer_kaenguru(self,infoaboutshit,key: int):
+    def set_treffer_kaenguru(self, key: int):
         if self.SM.get_state().is_action_state():
             player_index =-1
             if key == self.ziel_wahl[0]: player_index=0 #Spieler 1  
@@ -261,7 +261,7 @@ class Klappscheibe:
                         if player_index==0: self.SetLED(self.ziel_wahl[0], True)  
                         else: self.SetBlinking(self.ziel_wahl[1],True) 
 
-    def set_treffer_wechsel(self,infoaboutshit,key: int):
+    def set_treffer_wechsel(self, key: int):
         if self.SM.get_state().is_action_state():
             #print("Ziel_Wahl",self.ziel_wahl,"Key",key)
             if self.ziel_wahl[key] > 0:
@@ -317,7 +317,7 @@ class Klappscheibe:
     
     def transfer_punkte_wechsel(self):
         multiplier=1
-        if self.SM.zyklus.get()==0: multiplier=2
+        if self.SM.zyklus.get()==self.SM.wiederholungen.get(): multiplier=2
         #print(self.SM.zyklus.get())
         for index, ziel in enumerate(self.ziel_wahl):
             if ziel>0:
@@ -327,7 +327,7 @@ class Klappscheibe:
                 welcherSchuss = self.welcherSchuss(player.treffer)
                 set_punkte(player, welcherSchuss, self.SM.feuer.get(), self.ReferenzZeit, index, multiplier)
    
-    def set_treffer_zufall(self,infoaboutshit,key: int):
+    def set_treffer_zufall(self, key: int):
         player = self.players[0]
         if self.SM.get_state().is_action_state():
             welcherSchuss =self.welcherSchuss(player.treffer)
@@ -344,7 +344,7 @@ class Klappscheibe:
                 if self.SM.ton.get() == 1: self.SDeluebs.sound_win.play()    
                 self.set_ueberlebt()                                
 
-    def set_treffer_gegner_zufall(self,infoaboutshit,key: int):
+    def set_treffer_gegner_zufall(self, key: int):
         anzahlZiele = 1 #Wenn kleiner gleich 1 nur eine Scheibe pro Spieler
         if self.SM.scheibenServo.get() > 1 and self.SM.scheibenServo.get() < 5: anzahlZiele = 2 #sonst 2 Scheiben pro Spieler
         
@@ -373,7 +373,7 @@ class Klappscheibe:
                 if self.SM.ton.get() == 1: self.SDeluebs.sound_win.play()    
                 self.set_ueberlebt()
 
-    def set_treffer_gegner(self,infoaboutshit,key: int):
+    def set_treffer_gegner(self, key: int):
         if self.SM.get_state().is_action_state():
             if key in [3, 4, 0, 1]:
                 player_index = 0 if key in [3, 4] else 1
@@ -703,7 +703,7 @@ class PyGameTaster(threading.Thread):
         self.root.quit()
 
     def run(self):
-        self.PyGameTasterLoop(self)  
+        self.PyGameTasterLoop()  
 
     def stop(self):
         self._running = False  # 🆕 Methode zum Stoppen des Loops        
@@ -724,13 +724,13 @@ class PyGameTaster(threading.Thread):
             if self.on_button_event:
                 self.on_button_event(button_id)            
             #Hier Programmauswertung
-            if   self.KSobjekt.SM.zufall.get()==1 and self.KSobjekt.SM.gegner_modus.get()==1: self.KSobjekt.set_treffer_gegner_zufall(self.KSobjekt, button_id) #Gegnermodus mit Zufallsmodus       
-            elif self.KSobjekt.SM.zufall.get()==1:                                            self.KSobjekt.set_treffer_zufall(self.KSobjekt, button_id)        #Zufalls-Modus
-            elif self.KSobjekt.SM.jaeger_modus.get()==1:                                      self.KSobjekt.set_treffer_jaeger(self.KSobjekt, button_id)        #Jäger-Modus
-            elif self.KSobjekt.SM.kaenguru_modus.get()==1:                                    self.KSobjekt.set_treffer_kaenguru(self.KSobjekt, button_id)      #Känguru-Modus
-            elif self.KSobjekt.SM.reihe.get()==1 and  self.KSobjekt.SM.gegner_modus.get()==1: self.KSobjekt.set_treffer_wechsel(self.KSobjekt, button_id)       #Wechsel-Modus
-            elif self.KSobjekt.SM.gegner_modus.get()==1:                                      self.KSobjekt.set_treffer_gegner(self.KSobjekt, button_id)        #Gegner-Modus
-            else:                                                                             self.KSobjekt.set_treffer(self.KSobjekt, button_id)               #Klappscheibe          
+            if   self.KSobjekt.SM.zufall.get()==1 and self.KSobjekt.SM.gegner_modus.get()==1: self.KSobjekt.set_treffer_gegner_zufall(button_id) #Gegnermodus mit Zufallsmodus       
+            elif self.KSobjekt.SM.zufall.get()==1:                                            self.KSobjekt.set_treffer_zufall(button_id)        #Zufalls-Modus
+            elif self.KSobjekt.SM.jaeger_modus.get()==1:                                      self.KSobjekt.set_treffer_jaeger(button_id)        #Jäger-Modus
+            elif self.KSobjekt.SM.kaenguru_modus.get()==1:                                    self.KSobjekt.set_treffer_kaenguru(button_id)      #Känguru-Modus
+            elif self.KSobjekt.SM.reihe.get()==1 and  self.KSobjekt.SM.gegner_modus.get()==1: self.KSobjekt.set_treffer_wechsel(button_id)       #Wechsel-Modus
+            elif self.KSobjekt.SM.gegner_modus.get()==1:                                      self.KSobjekt.set_treffer_gegner(button_id)        #Gegner-Modus
+            else:                                                                             self.KSobjekt.set_treffer(button_id)               #Klappscheibe          
             self.buttonlaststate[button_id]=True
             self.buttonlasttime[button_id]=time.monotonic()
             self.KSobjekt.append_event_snapshot("shoot", button_id) # HIER EVENTLOG ERSTELLEN
@@ -738,7 +738,7 @@ class PyGameTaster(threading.Thread):
             self.buttonlaststate[button_id]=False #Hier wird erkannt, dass der Knopf losgelassen wurde
 
 
-    def PyGameTasterLoop(infoaboutthread,self):
+    def PyGameTasterLoop(self):
         pygame.init()
         pygame.joystick.init() #initialise the joystick module
         clock = pygame.time.Clock() #create clock for setting game frame rate
