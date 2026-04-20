@@ -224,7 +224,7 @@ class TestShootingDeLuebsGUI(unittest.TestCase):
     def shoot(self, key: int):
         print(f"🎯 Feuer auf die {key}...")
         self.app.pytaster.handle_button_press(key, True)
-        self.root.after(100, lambda: self.app.pytaster.handle_button_press(key, False))
+        self.root.after(20, lambda: self.app.pytaster.handle_button_press(key, False))
 
     def close_gui(self):
         print("🛑 GUI wird geschlossen...")

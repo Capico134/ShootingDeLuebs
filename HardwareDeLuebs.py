@@ -605,6 +605,7 @@ class Klappscheibe:
     #return snapshot
 
     def set_ziel_wahl_replay(self, w_liste):
+        #startzeit = time.monotonic()
         """
         Synchronisiert den physischen Zustand (LEDs) mit der historischen Zielwahl.
         Unterscheidet zwischen Positions-Maps (Wechsel) und ID-Listen (Zufall/Känguru).
@@ -624,8 +625,13 @@ class Klappscheibe:
             # 0. anzahlZiele auslesen
             anzahlZiele = 1 #Wenn kein sinvoller Wert bei scheibenServo angegeben ist, dann nur 1 Ziel.
             if self.SM.scheibenServo.get() > 0 and self.SM.scheibenServo.get() < 5: anzahlZiele = self.SM.scheibenServo.get()
-            # 1. Den internen Status der Engine knallhart überschreiben
-            self.ziel_wahl = list(w_liste)
+            # 1. Den internen Status der Engine knallhart überschreiben #####################################WORKAROUND!!!!!!!!!!!!!!!!#####################
+            # --- FIX: Matroschka-Schutz ---
+            # Falls die Liste durch das YAML-Parsing verschachtelt ankommt (z.B. [[1, 2]])
+            if isinstance(w_liste[0], (list, tuple)):
+                self.ziel_wahl = list(w_liste[0])
+            else:
+                self.ziel_wahl = list(w_liste)
             # 2. SOLL-ZUSTAND BERECHNEN (Verhindert das Timer-Doppelblinken!)
             # Wir bereiten zwei Schablonen vor, wie die LEDs aussehen sollen.
             soll_led = [False] * 5
@@ -663,6 +669,7 @@ class Klappscheibe:
                     if self.LED_status[i] != soll_led[i]:
                         self.SetLED(i, soll_led[i])
             print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")            
+         #   print(f"Laufzeit von set_ziel_wahl_replay { time.monotonic() - startzeit}")
 
     def SetLED(self, Nr: int, LEDswitch: bool): #Einzelne LED schalten
         if LEDswitch: self.LEDs[Nr].angle(90)

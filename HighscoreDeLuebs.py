@@ -651,12 +651,10 @@ class HighscoreDeluebs:
                                     # =================================================================
                                     last_t_orig_ms = 0
                                     current_state = ""
-                                    accumulated_delay_ms = 0 # Sammelt Wartezeiten, bis eine Aktion sie braucht
+                                    accumulated_delay_ms = 0
+                                    phase_t_orig_ms = 0 # NEU: Stoppuhr für die aktuelle Phase
                                     
-                                    # Zeiten, die im Replay zwingend gekürzt / fixiert werden sollen:
-                                    replay_times = {
-                                        "LADEN": new_lg * 1000
-                                    }
+                                    lg_safe = max(1, lg)
 
                                     for ev in timeline:
                                         action_type = ev.get('a', '')
@@ -664,21 +662,40 @@ class HighscoreDeluebs:
                                         z = max(0, ev.get('z', -1))
                                         m = ev.get('m', '')
                                         
-                                        # Delta zum vorherigen Original-Event berechnen
                                         delta_orig_ms = max(0, t_orig_ms - last_t_orig_ms)
+                                        delta_new_ms = delta_orig_ms # Standardmäßig 1:1
+                                        
+                                        # --- DIE GENIALE 2-SEKUNDEN-LOGIK ---
+                                        if current_state == "LADEN" and lg_safe > new_lg:
+                                            # Wir schauen, wo wir zeitlich in der Ladephase stehen
+                                            next_phase_t_orig_ms = phase_t_orig_ms + delta_orig_ms
+                                            
+                                            def map_laden_time(t_ms):
+                                                if new_lg <= 2: # Falls Zielzeit extrem kurz ist, normal linear stauchen
+                                                    return t_ms * (new_lg / lg_safe)
+                                                
+                                                t_uncomp = 2000 # Die ersten 2 Sekunden (2000ms) bleiben unangetastet!
+                                                if t_ms <= t_uncomp:
+                                                    return float(t_ms)
+                                                else:
+                                                    # Der Rest wird gequetscht
+                                                    ratio = (new_lg * 1000 - t_uncomp) / max(1, (lg_safe * 1000 - t_uncomp))
+                                                    return t_uncomp + (t_ms - t_uncomp) * ratio
+                                                    
+                                            mapped_start = map_laden_time(phase_t_orig_ms)
+                                            mapped_end = map_laden_time(next_phase_t_orig_ms)
+                                            
+                                            delta_new_ms = int(mapped_end - mapped_start)
+                                            phase_t_orig_ms = next_phase_t_orig_ms
+                                        elif current_state == "LADEN":
+                                            phase_t_orig_ms += delta_orig_ms
                                         
                                         # Kompatibilität für verschiedene Bezeichnungen des Statuswechsels
                                         if action_type in ["state_change", "feuer_start", "zyklus_start"]:
                                             
-                                            # Welche Zeitspanne bekommt diese Phase im Replay?
-                                            if current_state in replay_times:
-                                                delta_new_ms = replay_times[current_state]
-                                            else:
-                                                delta_new_ms = delta_orig_ms
-                                                
-                                            # Die Zeit auf den Stapel legen
                                             accumulated_delay_ms += delta_new_ms
                                             current_state = m
+                                            phase_t_orig_ms = 0 # Stoppuhr-Reset für die nächste Phase!
                                             
                                             # Wenn wir in FEUER wechseln, müssen wir die Startziele setzen
                                             if m == "FEUER":
@@ -686,7 +703,7 @@ class HighscoreDeluebs:
                                                 if w_init and (is_kaenguru or is_zufall):
                                                     yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
                                                     yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                    yaml_lines.append(f"    wert: {w_init}")
+                                                    yaml_lines.append(f"    wert: [{w_init}]") # <--- FIX: Hier fehlten die doppelten Klammern!
                                                     # Hier leeren wir unseren Zeit-Stapel aus!
                                                     yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
                                                     yaml_lines.append("")
@@ -694,15 +711,23 @@ class HighscoreDeluebs:
                                                     time_debt_ms += 50
                                                     
                                         elif action_type == "shoot":
-                                            # Die Schuss-Wartezeit setzt sich aus dem Original-Abstand 
-                                            # und evtl. noch ungenutzter Wartezeit von Statuswechseln zusammen
-                                            delta_new_ms = delta_orig_ms + accumulated_delay_ms
+                                            # Die Schuss-Wartezeit inkl. Stapel
+                                            delta_new_ms = delta_new_ms + accumulated_delay_ms
                                             accumulated_delay_ms = 0 # Stapel leeren
                                             
-                                            # Cooldown garantieren (Engine verschluckt sonst zu schnelle Inputs)
-                                            delta_new_ms = max(300, delta_new_ms)
+                                            ## Cooldown garantieren
+                                            delta_new_ms = max(50, delta_new_ms)
+
+                                            # Cooldown garantieren: Nur für ungestauchte Events!
+                                            # Wenn wir im LADEN-Modus gestaucht haben, lassen wir auch extrem kurze
+                                            # Deltas zu, damit schnelle Mehrfachschüsse nicht über die Phasengrenze quellen.
+                                            #if current_state != "LADEN" or lg_safe <= new_lg:
+                                            #    delta_new_ms = max(300, delta_new_ms)
+                                            #else:
+                                            #    # Im hochkomprimierten Bereich reichen 50ms, damit der Roboter-Taster kurz auf- und zugeht
+                                            #    delta_new_ms = max(50, delta_new_ms)
                                             
-                                            # Zeitschulden der Assertions abbauen
+                                            # Zeitschulden abbauen
                                             if time_debt_ms > 0:
                                                 abbau_debt = min(delta_new_ms, time_debt_ms) 
                                                 delta_new_ms -= abbau_debt         
@@ -717,16 +742,16 @@ class HighscoreDeluebs:
                                             yaml_lines.append(f"    step_time: {delta_new_ms}")
                                             yaml_lines.append("")
                                             
-                                            # Historisches Folgeziel sofort nachschieben (Wichtig für Känguru!)
+                                            # Historisches Folgeziel sofort nachschieben
                                             w_historisch = ev.get('w', [])
                                             if w_historisch and is_kaenguru:
                                                 yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
                                                 yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                yaml_lines.append(f"    wert: {w_historisch}")
+                                                yaml_lines.append(f"    wert: [{w_historisch}]")
                                                 yaml_lines.append(f"    step_time: 0")
                                                 yaml_lines.append("")                                            
 
-                                            # Statusprüfung anhängen (Dauert 10ms -> Puffer aufbauen)
+                                            # Statusprüfung anhängen
                                             yaml_lines.append(f"  - name: \"Prüfe Status nach Schuss auf {wert}\"")
                                             yaml_lines.append(f"    actual_attr: \"get_state\"")
                                             yaml_lines.append(f"    expected: '{m}'")
