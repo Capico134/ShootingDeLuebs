@@ -472,6 +472,14 @@ class HighscoreDeluebs:
                                             line = f"{t} | {tref} | {zyk:^4} | {'SHOT':<8} | {v:^4} | {w:^18} | {p1:^18} | {p2:^18}\n"
                                             event_details += line
                                             last_action_was_state = False
+                                            
+                                        else:
+                                            # --- NEU: Catch-All für unbekannte Events ---
+                                            # Schneidet den Aktionsnamen auf max. 8 Zeichen ab, damit das Layout heile bleibt
+                                            aktions_name = str(action)[:18] if action else "UNKNOWN"
+                                            line = f"{t} | {tref} | {zyk:^4} | {' ':<8} | {' ':^4} | {aktions_name:^18} | {' ':^18} | {' ':^18}\n"
+                                            event_details += line
+                                            last_action_was_state = False                                            
                                         
                                 except Exception as e:
                                     event_details = f"\n[Fehler beim Laden des Event-Logs: {e}]"
@@ -514,16 +522,19 @@ class HighscoreDeluebs:
                                 try:
                                     with open(log_path, "r", encoding="utf-8") as f:
                                         geladene_daten = json.load(f)
-                                        # --- Die Türsteher-Weiche ---
-                                        if isinstance(geladene_daten, dict):
-                                            # Neues Format (ab Match 102)
-                                            timeline = geladene_daten.get("timeline", [])
-                                        else:
-                                            # Altes Format (Match 1 bis 101)
-                                            timeline = geladene_daten
+                                        # --- Der neue, strenge Türsteher ---
+                                        if not isinstance(geladene_daten, dict) or "timeline" not in geladene_daten:
+                                            from tkinter import messagebox
+                                            messagebox.showinfo(
+                                                "Replay nicht möglich", 
+                                                f"Match {match_id} verwendet ein veraltetes Speicherformat.\n\n"
+                                                "Replays stehen nur für neuere Matches zur Verfügung."
+                                            )
+                                            continue  # Bricht hier ab und geht zum nächsten Match in der Schleife
+                                        # Ab hier können wir uns zu 100% darauf verlassen, dass das Format neu und sauber ist
+                                        timeline = geladene_daten.get("timeline", [])
+                                        yaml_lines = ["scenario:"]
                                         
-                                    yaml_lines = ["scenario:"]
-
                                     # --- PROGRAMM-INDEX VIA CSV ERMITTELN ---
                                     programm_name = entry.get("programm_name", "").strip()
 

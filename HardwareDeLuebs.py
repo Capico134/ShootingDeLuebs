@@ -668,7 +668,8 @@ class Klappscheibe:
                 if not soll_blink[i]:
                     if self.LED_status[i] != soll_led[i]:
                         self.SetLED(i, soll_led[i])
-            print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")            
+            #print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")    
+            self.append_event_snapshot(f"Rec:{w_liste}")
          #   print(f"Laufzeit von set_ziel_wahl_replay { time.monotonic() - startzeit}")
 
     def SetLED(self, Nr: int, LEDswitch: bool): #Einzelne LED schalten
