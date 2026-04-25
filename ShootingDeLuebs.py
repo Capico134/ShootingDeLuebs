@@ -34,7 +34,7 @@ def get_current_version():
     except Exception:
         # FALLBACK: Sehr wichtig! Falls das Spiel mal als reine ZIP-Datei 
         # (ohne den versteckten .git Ordner) heruntergeladen wird.
-        return "1.13.1" # Hier den aktuellen Stand eintragen
+        return "1.13.x (No Git Info)" # So weißt du sofort: Hier fehlt der .git Ordner!
 
 # Die globale Konstante wird jetzt automatisch befüllt!
 VERSION = get_current_version()
