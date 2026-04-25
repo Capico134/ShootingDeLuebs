@@ -5,6 +5,11 @@ import io #für zipfile
 import csv #Hier für Programm-Buttons
 import pygame # Hier für Tonausgabe (ebenfalls für die Joystickeingaben bei HardwareDeLuebs)
 from PIL import Image, ImageTk#, ImageFont  # Pillow muss installiert sein: `pip install pillow`
+
+import platform  #Für neuen TTS
+import threading #Für neuen TTS
+import subprocess#Für neuen TTS
+
 try:
     from robot_hat import TTS # type: ignore
 except ImportError:
@@ -13,6 +18,7 @@ except ImportError:
 import HardwareDeLuebs as HDeLuebs    
 import HighscoreDeLuebs as HSDeLuebs 
 import StateManagerDeLuebs as SMDeLuebs
+from AudioDeLuebs import AudioManager
 
 import subprocess
 import re
@@ -46,27 +52,24 @@ class ShootingDeluebs:
         self.root.title(f"Shooting DeLübs: Version {VERSION}")
         self.root['background'] = 'grey'
         self.version = VERSION
-        pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=128)
-        with zipfile.ZipFile("data.pak", "r") as pak:
-            self.sound0 = pygame.mixer.Sound(io.BytesIO(pak.read("beep-07a.wav")))
-            self.sound0.set_volume(0.9)
-            self.sound1 = pygame.mixer.Sound(io.BytesIO(pak.read("bumbbumbv2.wav")))
-            self.sound1.set_volume(0.9)
-            self.sound_error = pygame.mixer.Sound(io.BytesIO(pak.read('error_kurz.wav')))
-            self.sound_error.set_volume(0.9)
-            self.sound_pfeife = pygame.mixer.Sound(io.BytesIO(pak.read('PfeifeKurz2.wav')))
-            self.sound_pfeife.set_volume(0.9)
-            self.sound_win = pygame.mixer.Sound(io.BytesIO(pak.read('goodresult-82807.mp3')))
-            self.sound_win.set_volume(0.9)
-            self.sound_load = pygame.mixer.Sound(io.BytesIO(pak.read('new-notification-07-210334.mp3')))
-            self.sound_load.set_volume(0.9)         
-            self.sound_orchestra = pygame.mixer.Sound(io.BytesIO(pak.read('11325622-orchestra-hit-240475.wav')))
-            self.sound_orchestra.set_volume(0.9)                        
-            self.sound_buzzticker = pygame.mixer.Sound(io.BytesIO(pak.read('BuzzTicker_early.wav')))
-            self.sound_buzzticker.set_volume(0.8)                   
-            self.sound_shoot = pygame.mixer.Sound(io.BytesIO(pak.read('freesound_community-080997_bullet-39735.wav')))
-            self.sound_shoot.set_volume(0.9)                                    
-        self.tts = TTS(lang='de-DE')
+        
+        # Audio-Manager initialisiert Pygame, lädt ZIPs und verwaltet TTS
+        self.audio = AudioManager()
+        
+        # Abwärtskompatibilität für deinen restlichen Code:
+        # self.tts.say("...") und self.sound_win.play() funktionieren weiter!
+        self.tts = self.audio
+        self.sound_win = self.audio.sound_win
+        self.sound0 = self.audio.sound0
+        self.sound1 = self.audio.sound1
+        self.sound_error = self.audio.sound_error
+        self.sound_pfeife = self.audio.sound_pfeife
+        self.sound_load = self.audio.sound_load
+        self.sound_orchestra = self.audio.sound_orchestra
+        self.sound_buzzticker = self.audio.sound_buzzticker
+        self.sound_shoot = self.audio.sound_shoot
+        
+        
         self.hintergrundbilder = {}
 
         #HighscoreDeluebs
@@ -310,6 +313,39 @@ class ShootingDeluebs:
 #UNÖTIGIGE AUFTEILUNG zwischen Hauptlabel und update_graphic   
     def update_graphic(self):
         self.update_hauptlabel() #enthält update_idletasks()
+
+    def say(self, text):
+        def run():
+            if self.system == "Linux":
+                import shlex
+                # 1. Offline-Generierung (PicoTTS)
+                wav_file = "temp_speech.wav"
+                os.system(f'pico2wave --lang=de-DE --wave={wav_file} {shlex.quote(text)}')
+                
+                # 2. Pygame Sound-Check & Play
+                try:
+                    # Sound laden und abspielen
+                    voice = pygame.mixer.Sound(wav_file)
+                    voice.play() 
+                    # Gut zu wissen: voice.play() von pygame ist von Natur aus asynchron!
+                except Exception as e:
+                    print(f"Audio-Fehler am Pi: {e}")
+                    
+            elif self.system == "Windows":
+                # Native Windows-Sprachausgabe (SAPI) via PowerShell
+                ps_cmd = f'Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak("{text}")'
+                
+                # Subprocess nutzen: Sicherer bei Strings und versteckt das CMD-Fenster!
+                # CREATE_NO_WINDOW (0x08000000) verhindert, dass kurz ein schwarzes Fenster aufblitzt
+                CREATE_NO_WINDOW = 0x08000000
+                try:
+                    subprocess.run(["powershell", "-Command", ps_cmd], creationflags=CREATE_NO_WINDOW)
+                except Exception as e:
+                    print(f"Windows Audio-Mock Fehler: {e}")
+    
+        # Asynchroner Start: Das Spiel läuft flüssig weiter!
+        threading.Thread(target=run, daemon=True).start()
+
     
     def key_handler(self, event=None):
         if event and event.keysym.startswith('F'):

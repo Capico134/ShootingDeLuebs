@@ -417,8 +417,10 @@ class StateManager:
                             if self.survival_modus.get()==0 and self.jaeger_modus.get()==0: self.SDeluebs.sound1.play()
                             if self.survival_modus.get()==1: self.SDeluebs.tts.say('Feuerzeit '+str(self.feuer.get())+' Sekunden') 
                             if self.jaeger_modus.get()==1:
+                                timedelay = 0 if self.survival_modus.get()==0 else 3000
                                 jaeger_name = self.spieler.get() if self.SDeluebs.KSobjekt.players[0].is_jaeger else self.spieler2.get() 
-                                self.SDeluebs.tts.say('Jäger ist '+jaeger_name) 
+                                # Syntax: after(ms, funktion, argument1, argument2, ...)
+                                self.SDeluebs.root.after(timedelay, self.SDeluebs.tts.say, 'Jäger ist ' + jaeger_name)
                         #HardwareDeLuebs
                         if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos()
                         self.SDeluebs.KSobjekt.LEDsOff()
