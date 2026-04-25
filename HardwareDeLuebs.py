@@ -275,6 +275,7 @@ class Klappscheibe:
                             if bonus_key is not None:                            
                                 self.ziel_wahl[bonus_key] = 2
                                 self.SetBlinking(bonus_key, True) 
+                                self.append_event_snapshot(f"Bonus Spieler 1")
                                 if self.SM.ton.get() == 1: self.SDeluebs.sound_orchestra.play()
                 elif self.ziel_wahl[key] == 2: #Spieler 2 hat getroffen
                     self.ziel_wahl[key] = 1
@@ -288,6 +289,7 @@ class Klappscheibe:
                                 self.ziel_wahl[bonus_key] = 1
                                 self.SetBlinking(bonus_key, False)   
                                 self.SetLED(bonus_key, True)
+                                self.append_event_snapshot(f"Bonus Spieler 2")
                                 if self.SM.ton.get() == 1: self.SDeluebs.sound_orchestra.play()                    
                 #Hier erstmalig die Mitte zuweisen:
                 if self.ziel_wahl[2] == -1:
