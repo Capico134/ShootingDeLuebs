@@ -43,7 +43,7 @@ class ShootingDeluebs:
     def __init__(self, root):
         self.root = root
         self.root.geometry('1920x1200')
-        self.root.title('Shooting DeLübs')
+        self.root.title(f"Shooting DeLübs: Version {VERSION}")
         self.root['background'] = 'grey'
         self.version = VERSION
         pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=128)
