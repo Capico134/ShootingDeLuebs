@@ -531,264 +531,278 @@ class HighscoreDeluebs:
                                                 "Replays stehen nur für neuere Matches zur Verfügung."
                                             )
                                             continue  # Bricht hier ab und geht zum nächsten Match in der Schleife
+                                        
                                         # Ab hier können wir uns zu 100% darauf verlassen, dass das Format neu und sauber ist
                                         timeline = geladene_daten.get("timeline", [])
                                         yaml_lines = ["scenario:"]
                                         
-                                    # --- PROGRAMM-INDEX VIA CSV ERMITTELN ---
-                                    programm_name = entry.get("programm_name", "").strip()
+                                        # =================================================================
+                                        # --- 1. METADATEN AUSLESEN (SINGLE SOURCE OF TRUTH) ---
+                                        # =================================================================
+                                        metadata = geladene_daten.get("metadata", entry) 
+                                        
+                                        programm_name = metadata.get("programm_name", "").strip()
+                                        is_kaenguru   = metadata.get("kaenguru_modus", 0) == 1
+                                        is_zufall     = metadata.get("zufall", 0) == 1
+                                        
+                                        sp1 = metadata.get("spieler", "Spieler 1")
+                                        sp2 = metadata.get("spieler2", "Spieler 2")
+                                        if sp2 is None: sp2 = "" 
+                                        
+                                        hist_achtung = metadata.get("achtung", 3)
+                                        hist_feuer = metadata.get("default_feuerzeit", metadata.get("feuer", 10))
+                                        vorb         = metadata.get("vorbereiten", 5)
+                                        lg           = metadata.get("ladenGelb", 3)
 
-                                    # Direkt abbrechen, wenn modifiziert
-                                    if "(modifiziert)" in programm_name:
-                                        from tkinter import messagebox
-                                        messagebox.showinfo("Replay nicht möglich", 
-                                            f"Das Match '{programm_name}' enthält manuell veränderte Einstellungen.\n\n"
-                                            "Replays werden aktuell nur für Standard-Programme (ohne Modifikationen) unterstützt.")
-                                        continue 
-                                    
-                                    # Alle Tags entfernen
-                                    base_programm_name = programm_name.replace(" (debug)", "")\
-                                                                      .replace(" (1min)", "")\
-                                                                      .replace(" (dev)", "").strip()
-                                    prog_index = None
-                                    
-                                    # CSV durchsuchen
-                                    try:
-                                        if os.path.exists("Programme.csv"):
-                                            with open("Programme.csv", "r", encoding="utf-8") as csv_file:
-                                                lines = csv_file.readlines()
-                                                for i in range(2, len(lines)):
-                                                    row_name = lines[i].split(',')[0].strip()
-                                                    if row_name == base_programm_name:
-                                                        prog_index = i - 2  # Korrektur um die 2 Header-Zeilen
-                                                        break
-                                    except Exception as e:
-                                        print(f"Fehler beim Lesen der Programme.csv: {e}")
+                                        # =================================================================
+                                        # --- 2. PROGRAMM-INDEX VIA CSV ERMITTELN ---
+                                        # =================================================================
+                                        # Direkt abbrechen, wenn modifiziert
+                                        if "(modifiziert)" in programm_name:
+                                            from tkinter import messagebox
+                                            messagebox.showinfo("Replay nicht möglich", 
+                                                f"Das Match '{programm_name}' enthält manuell veränderte Einstellungen.\n\n"
+                                                "Replays werden aktuell nur für Standard-Programme (ohne Modifikationen) unterstützt.")
+                                            continue 
+                                        
+                                        # Alle Tags entfernen
+                                        base_programm_name = programm_name.replace(" (debug)", "")\
+                                                                          .replace(" (1min)", "")\
+                                                                          .replace(" (dev)", "").strip()
+                                        prog_index = None
+                                        
+                                        # CSV durchsuchen
+                                        try:
+                                            if os.path.exists("Programme.csv"):
+                                                with open("Programme.csv", "r", encoding="utf-8") as csv_file:
+                                                    lines = csv_file.readlines()
+                                                    for i in range(2, len(lines)):
+                                                        row_name = lines[i].split(',')[0].strip()
+                                                        if row_name == base_programm_name:
+                                                            prog_index = i - 2  # Korrektur um die 2 Header-Zeilen
+                                                            break
+                                        except Exception as e:
+                                            print(f"Fehler beim Lesen der Programme.csv: {e}")
 
-                                    if prog_index is None:
-                                        from tkinter import messagebox
-                                        messagebox.showerror("Export abgebrochen", 
-                                            f"Das Programm '{base_programm_name}' wurde in der Programme.csv nicht gefunden.\n"
-                                            "Ein Replay ist nur für aktuell existierende Programme möglich.")
-                                        continue 
+                                        if prog_index is None:
+                                            from tkinter import messagebox
+                                            messagebox.showerror("Export abgebrochen", 
+                                                f"Das Programm '{base_programm_name}' wurde in der Programme.csv nicht gefunden.\n"
+                                                "Ein Replay ist nur für aktuell existierende Programme möglich.")
+                                            continue 
 
-                                    # --- METADATEN AUSLESEN ---
-                                    metadata = geladene_daten.get("metadata", entry) 
-                                    is_kaenguru = metadata.get("kaenguru_modus", 0) == 1
-                                    is_zufall = metadata.get("zufall", 0) == 1
+                                        # =================================================================
+                                        # --- 3. INITIALISIERUNG IM YAML SCHREIBEN ---
+                                        # =================================================================
+                                        # Programm laden
+                                        yaml_lines.append(f"  - name: \"Programm {prog_index} laden: {base_programm_name}\"")
+                                        yaml_lines.append(f"    action: \"call_sm_method\"")
+                                        yaml_lines.append(f"    wert: [\"setProgramm\", {prog_index}]")
+                                        yaml_lines.append(f"    step_time: 300")
+                                        yaml_lines.append("")
 
-                                    # --- INITIALISIERUNG IM YAML SCHREIBEN ---
-                                    # Programm laden
-                                    yaml_lines.append(f"  - name: \"Programm {prog_index} laden: {base_programm_name}\"")
-                                    yaml_lines.append(f"    action: \"call_sm_method\"")
-                                    yaml_lines.append(f"    wert: [\"setProgramm\", {prog_index}]")
-                                    yaml_lines.append(f"    step_time: 300")
-                                    yaml_lines.append("")
+                                        # Replay Nummer setzen
+                                        replay_id_str = f"Rec\u200A{match_id}"
+                                        yaml_lines.append(f"  - name: \"Replay-ID setzen ({replay_id_str})\"")
+                                        yaml_lines.append(f"    action: \"call_sm_method\"")
+                                        yaml_lines.append(f"    wert: [\"set_replay_match\", \"{replay_id_str}\"]")
+                                        yaml_lines.append(f"    step_time: 250")
+                                        yaml_lines.append("")          
 
-                                    # Replay Nummer setzen
-                                    replay_id_str = f"Rec\u200A{match_id}"
-                                    yaml_lines.append(f"  - name: \"Replay-ID setzen ({replay_id_str})\"")
-                                    yaml_lines.append(f"    action: \"call_sm_method\"")
-                                    yaml_lines.append(f"    wert: [\"set_replay_match\", \"{replay_id_str}\"]")
-                                    yaml_lines.append(f"    step_time: 250")
-                                    yaml_lines.append("")          
-
-                                    # Spielernamen aus der Highscore auslesen und setzen
-                                    sp1 = entry.get("spieler", "Spieler 1")
-                                    sp2 = entry.get("spieler2", "Spieler 2")
-                                    if sp2 is None: sp2 = "" 
-
-                                    yaml_lines.append(f"  - name: \"Spieler 1 aus Highscore setzen\"")
-                                    yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                    yaml_lines.append(f"    wert: [\"spieler\", \"{sp1}\"]")
-                                    yaml_lines.append(f"    step_time: 10")
-                                    yaml_lines.append("")
-
-                                    yaml_lines.append(f"  - name: \"Spieler 2 aus Highscore setzen\"")
-                                    yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                    yaml_lines.append(f"    wert: [\"spieler2\", \"{sp2}\"]")
-                                    yaml_lines.append(f"    step_time: 10")
-                                    yaml_lines.append("")
-
-                                    # Dev-Override & Smart-Fast-Forward
-                                    vorb = entry.get("vorbereiten", 5)
-                                    lg   = entry.get("ladenGelb", 3)
-                                    new_lg = lg # Standardwert, falls nicht modifiziert
-                                    
-                                    if "(dev)" in programm_name:
-                                        wdh = entry.get("wiederholungen", 2)
-                                        yaml_lines.append(f"  - name: \"Dev-Override: Vorbereiten auf 1\"")
+                                        # Spielernamen aus der Highscore auslesen und setzen
+                                        yaml_lines.append(f"  - name: \"Spieler 1 aus Highscore setzen\"")
                                         yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                        yaml_lines.append(f"    wert: [\"vorbereiten\", 1]")
+                                        yaml_lines.append(f"    wert: [\"spieler\", \"{sp1}\"]")
+                                        yaml_lines.append(f"    step_time: 10")
+                                        yaml_lines.append("")
+
+                                        yaml_lines.append(f"  - name: \"Spieler 2 aus Highscore setzen\"")
+                                        yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                        yaml_lines.append(f"    wert: [\"spieler2\", \"{sp2}\"]")
                                         yaml_lines.append(f"    step_time: 10")
                                         yaml_lines.append("")
                                         
-                                        yaml_lines.append(f"  - name: \"Dev-Override: LadenGelb auf 1\"")
+                                        # --- DIE HISTORISCHE ZEITKAPSEL ---
+                                        yaml_lines.append(f"  - name: \"Historische Achtung-Zeit setzen ({hist_achtung}s)\"")
                                         yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                        yaml_lines.append(f"    wert: [\"ladenGelb\", 1]")
+                                        yaml_lines.append(f"    wert: [\"achtung\", {hist_achtung}]")
                                         yaml_lines.append(f"    step_time: 10")
                                         yaml_lines.append("")
+
+                                        yaml_lines.append(f"  - name: \"Historische Feuer-Zeit setzen ({hist_feuer}s)\"")
+                                        yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                        yaml_lines.append(f"    wert: [\"feuer\", {hist_feuer}]")
+                                        yaml_lines.append(f"    step_time: 10")
+                                        yaml_lines.append("")
+
+                                        # Dev-Override & Smart-Fast-Forward
+                                        new_lg = lg # Standardwert, falls nicht modifiziert
                                         
-                                        yaml_lines.append(f"  - name: \"Dev-Override: Wiederholungen setzen\"")
-                                        yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                        yaml_lines.append(f"    wert: [\"wiederholungen\", {wdh}]")
-                                        yaml_lines.append(f"    step_time: 10")
-                                        yaml_lines.append("")
-                                        new_lg = 1 # Für die Replay-Zeitberechnung
-                                    else:
-                                        # SMART-SPEEDUP für normale, echte Matches
-                                        new_lg = min(lg, 3)
-                                        if new_lg != lg:
-                                            yaml_lines.append(f"  - name: \"Smart-Override: Wartezeiten auf je max {new_lg}s reduziert\"")
+                                        if "(dev)" in programm_name:
+                                            wdh = metadata.get("wiederholungen", 2)
+                                            yaml_lines.append(f"  - name: \"Dev-Override: Vorbereiten auf 1\"")
                                             yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                            yaml_lines.append(f"    wert: [\"ladenGelb\", {new_lg}]")                                          
+                                            yaml_lines.append(f"    wert: [\"vorbereiten\", 1]")
                                             yaml_lines.append(f"    step_time: 10")
                                             yaml_lines.append("")
+                                            
+                                            yaml_lines.append(f"  - name: \"Dev-Override: LadenGelb auf 1\"")
+                                            yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                            yaml_lines.append(f"    wert: [\"ladenGelb\", 1]")
+                                            yaml_lines.append(f"    step_time: 10")
+                                            yaml_lines.append("")
+                                            
+                                            yaml_lines.append(f"  - name: \"Dev-Override: Wiederholungen setzen\"")
+                                            yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                            yaml_lines.append(f"    wert: [\"wiederholungen\", {wdh}]")
+                                            yaml_lines.append(f"    step_time: 10")
+                                            yaml_lines.append("")
+                                            new_lg = 1 # Für die Replay-Zeitberechnung
+                                        else:
+                                            # SMART-SPEEDUP für normale, echte Matches
+                                            new_lg = min(lg, 3)
+                                            if new_lg != lg:
+                                                yaml_lines.append(f"  - name: \"Smart-Override: Wartezeiten auf je max {new_lg}s reduziert\"")
+                                                yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                                yaml_lines.append(f"    wert: [\"ladenGelb\", {new_lg}]")                                        
+                                                yaml_lines.append(f"    step_time: 10")
+                                                yaml_lines.append("")
                                             
                                         # MODIFIZIERT TAG ENTFERNEN
                                         yaml_lines.append(f"  - name: \"Modifiziert-Tag entfernen\"")
                                         yaml_lines.append(f"    action: \"remove_modifiziert_tag\"")
-                                        yaml_lines.append(f"    step_time: 10")       
+                                        yaml_lines.append(f"    step_time: 10")        
                                         yaml_lines.append("")
 
-                                    # Countdown starten
-                                    yaml_lines.append(f"  - name: \"Countdown starten\"")
-                                    yaml_lines.append(f"    action: \"start_countdown\"")
-                                    yaml_lines.append(f"    step_time: 500")
-                                    yaml_lines.append("")
+                                        # Countdown starten
+                                        yaml_lines.append(f"  - name: \"Countdown starten\"")
+                                        yaml_lines.append(f"    action: \"start_countdown\"")
+                                        yaml_lines.append(f"    step_time: 500")
+                                        yaml_lines.append("")
 
-                                    # =================================================================
-                                    # --- NEUE MATCH TIMELINE VERARBEITUNG (Single-Pass Parser) ---
-                                    # =================================================================
-                                    last_t_orig_ms = 0
-                                    current_state = ""
-                                    accumulated_delay_ms = 0
-                                    phase_t_orig_ms = 0 # NEU: Stoppuhr für die aktuelle Phase
-                                    
-                                    lg_safe = max(1, lg)
+                                        # =================================================================
+                                        # --- 4. NEUE MATCH TIMELINE VERARBEITUNG (Single-Pass Parser) ---
+                                        # =================================================================
+                                        last_t_orig_ms = 0
+                                        current_state = ""
+                                        accumulated_delay_ms = 0
+                                        phase_t_orig_ms = 0 # NEU: Stoppuhr für die aktuelle Phase
+                                        
+                                        lg_safe = max(1, lg)
 
-                                    for ev in timeline:
-                                        action_type = ev.get('a', '')
-                                        t_orig_ms = int(ev.get('t', 0.0) * 1000)
-                                        z = max(0, ev.get('z', -1))
-                                        m = ev.get('m', '')
-                                        
-                                        delta_orig_ms = max(0, t_orig_ms - last_t_orig_ms)
-                                        delta_new_ms = delta_orig_ms # Standardmäßig 1:1
-                                        
-                                        # --- DIE GENIALE 2-SEKUNDEN-LOGIK ---
-                                        if current_state == "LADEN" and lg_safe > new_lg:
-                                            # Wir schauen, wo wir zeitlich in der Ladephase stehen
-                                            next_phase_t_orig_ms = phase_t_orig_ms + delta_orig_ms
+                                        for ev in timeline:
+                                            action_type = ev.get('a', '')
+                                            t_orig_ms = int(ev.get('t', 0.0) * 1000)
+                                            z = max(0, ev.get('z', -1))
+                                            m = ev.get('m', '')
                                             
-                                            def map_laden_time(t_ms):
-                                                if new_lg <= 2: # Falls Zielzeit extrem kurz ist, normal linear stauchen
-                                                    return t_ms * (new_lg / lg_safe)
+                                            delta_orig_ms = max(0, t_orig_ms - last_t_orig_ms)
+                                            delta_new_ms = delta_orig_ms # Standardmäßig 1:1
+                                            
+                                            # --- DIE GENIALE 2-SEKUNDEN-LOGIK ---
+                                            if current_state == "LADEN" and lg_safe > new_lg:
+                                                # Wir schauen, wo wir zeitlich in der Ladephase stehen
+                                                next_phase_t_orig_ms = phase_t_orig_ms + delta_orig_ms
                                                 
-                                                t_uncomp = 2000 # Die ersten 2 Sekunden (2000ms) bleiben unangetastet!
-                                                if t_ms <= t_uncomp:
-                                                    return float(t_ms)
-                                                else:
-                                                    # Der Rest wird gequetscht
-                                                    ratio = (new_lg * 1000 - t_uncomp) / max(1, (lg_safe * 1000 - t_uncomp))
-                                                    return t_uncomp + (t_ms - t_uncomp) * ratio
+                                                def map_laden_time(t_ms):
+                                                    if new_lg <= 2: # Falls Zielzeit extrem kurz ist, normal linear stauchen
+                                                        return t_ms * (new_lg / lg_safe)
                                                     
-                                            mapped_start = map_laden_time(phase_t_orig_ms)
-                                            mapped_end = map_laden_time(next_phase_t_orig_ms)
+                                                    t_uncomp = 2000 # Die ersten 2 Sekunden (2000ms) bleiben unangetastet!
+                                                    if t_ms <= t_uncomp:
+                                                        return float(t_ms)
+                                                    else:
+                                                        # Der Rest wird gequetscht
+                                                        ratio = (new_lg * 1000 - t_uncomp) / max(1, (lg_safe * 1000 - t_uncomp))
+                                                        return t_uncomp + (t_ms - t_uncomp) * ratio
+                                                
+                                                mapped_start = map_laden_time(phase_t_orig_ms)
+                                                mapped_end = map_laden_time(next_phase_t_orig_ms)
+                                                
+                                                delta_new_ms = int(mapped_end - mapped_start)
+                                                phase_t_orig_ms = next_phase_t_orig_ms
+                                            elif current_state == "LADEN":
+                                                phase_t_orig_ms += delta_orig_ms
                                             
-                                            delta_new_ms = int(mapped_end - mapped_start)
-                                            phase_t_orig_ms = next_phase_t_orig_ms
-                                        elif current_state == "LADEN":
-                                            phase_t_orig_ms += delta_orig_ms
-                                        
-                                        # Kompatibilität für verschiedene Bezeichnungen des Statuswechsels
-                                        if action_type in ["state_change", "feuer_start", "zyklus_start"]:
-                                            
-                                            accumulated_delay_ms += delta_new_ms
-                                            current_state = m
-                                            phase_t_orig_ms = 0 # Stoppuhr-Reset für die nächste Phase!
-                                            
-                                            # Wenn wir in FEUER wechseln, müssen wir die Startziele setzen
-                                            if m == "FEUER":
-                                                w_init = ev.get('w', [])
-                                                if w_init and (is_kaenguru or is_zufall):
-                                                    yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
+                                            # Kompatibilität für verschiedene Bezeichnungen des Statuswechsels
+                                            if action_type in ["state_change", "feuer_start", "zyklus_start"]:
+                                                
+                                                accumulated_delay_ms += delta_new_ms
+                                                current_state = m
+                                                phase_t_orig_ms = 0 # Stoppuhr-Reset für die nächste Phase!
+                                                
+                                                # Wenn wir in FEUER wechseln, müssen wir die Startziele setzen
+                                                if m == "FEUER":
+                                                    w_init = ev.get('w', [])
+                                                    if w_init and (is_kaenguru or is_zufall):
+                                                        yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
+                                                        yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                        yaml_lines.append(f"    wert: [{w_init}]") 
+                                                        # Hier leeren wir unseren Zeit-Stapel aus!
+                                                        yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
+                                                        yaml_lines.append("")
+                                                        accumulated_delay_ms = 0 # Stapel resetten
+                                                        time_debt_ms += 50
+                                                        
+                                            elif action_type == "shoot":
+                                                # Die Schuss-Wartezeit inkl. Stapel
+                                                delta_new_ms = delta_new_ms + accumulated_delay_ms
+                                                accumulated_delay_ms = 0 # Stapel leeren
+                                                
+                                                ## Cooldown garantieren
+                                                delta_new_ms = max(50, delta_new_ms)
+
+                                                # Zeitschulden abbauen
+                                                if time_debt_ms > 0:
+                                                    abbau_debt = min(delta_new_ms, time_debt_ms) 
+                                                    delta_new_ms -= abbau_debt         
+                                                    time_debt_ms -= abbau_debt 
+                                                    
+                                                wert = ev.get('v', 0)
+                                                
+                                                # Der eigentliche Schuss
+                                                yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
+                                                yaml_lines.append(f"    action: \"shoot\"")
+                                                yaml_lines.append(f"    wert: {wert}")
+                                                yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                                yaml_lines.append("")
+                                                
+                                                # Historisches Folgeziel sofort nachschieben
+                                                w_historisch = ev.get('w', [])
+                                                if w_historisch and is_kaenguru:
+                                                    yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
                                                     yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                    yaml_lines.append(f"    wert: [{w_init}]") # <--- FIX: Hier fehlten die doppelten Klammern!
-                                                    # Hier leeren wir unseren Zeit-Stapel aus!
-                                                    yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
-                                                    yaml_lines.append("")
-                                                    accumulated_delay_ms = 0 # Stapel resetten
-                                                    time_debt_ms += 50
-                                                    
-                                        elif action_type == "shoot":
-                                            # Die Schuss-Wartezeit inkl. Stapel
-                                            delta_new_ms = delta_new_ms + accumulated_delay_ms
-                                            accumulated_delay_ms = 0 # Stapel leeren
-                                            
-                                            ## Cooldown garantieren
-                                            delta_new_ms = max(50, delta_new_ms)
+                                                    yaml_lines.append(f"    wert: [{w_historisch}]")
+                                                    yaml_lines.append(f"    step_time: 0")
+                                                    yaml_lines.append("")                                            
 
-                                            # Cooldown garantieren: Nur für ungestauchte Events!
-                                            # Wenn wir im LADEN-Modus gestaucht haben, lassen wir auch extrem kurze
-                                            # Deltas zu, damit schnelle Mehrfachschüsse nicht über die Phasengrenze quellen.
-                                            #if current_state != "LADEN" or lg_safe <= new_lg:
-                                            #    delta_new_ms = max(300, delta_new_ms)
-                                            #else:
-                                            #    # Im hochkomprimierten Bereich reichen 50ms, damit der Roboter-Taster kurz auf- und zugeht
-                                            #    delta_new_ms = max(50, delta_new_ms)
-                                            
-                                            # Zeitschulden abbauen
-                                            if time_debt_ms > 0:
-                                                abbau_debt = min(delta_new_ms, time_debt_ms) 
-                                                delta_new_ms -= abbau_debt         
-                                                time_debt_ms -= abbau_debt 
+                                                # Statusprüfung anhängen
+                                                yaml_lines.append(f"  - name: \"Prüfe Status nach Schuss auf {wert}\"")
+                                                yaml_lines.append(f"    actual_attr: \"get_state\"")
+                                                yaml_lines.append(f"    expected: '{m}'")
+                                                yaml_lines.append(f"    step_time: 10")  
+                                                yaml_lines.append("")
+                                                time_debt_ms += 10
                                                 
-                                            wert = ev.get('v', 0)
-                                            
-                                            # Der eigentliche Schuss
-                                            yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
-                                            yaml_lines.append(f"    action: \"shoot\"")
-                                            yaml_lines.append(f"    wert: {wert}")
-                                            yaml_lines.append(f"    step_time: {delta_new_ms}")
-                                            yaml_lines.append("")
-                                            
-                                            # Historisches Folgeziel sofort nachschieben
-                                            w_historisch = ev.get('w', [])
-                                            if w_historisch and is_kaenguru:
-                                                yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
-                                                yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                yaml_lines.append(f"    wert: [{w_historisch}]")
-                                                yaml_lines.append(f"    step_time: 0")
-                                                yaml_lines.append("")                                            
+                                            last_t_orig_ms = t_orig_ms
 
-                                            # Statusprüfung anhängen
-                                            yaml_lines.append(f"  - name: \"Prüfe Status nach Schuss auf {wert}\"")
-                                            yaml_lines.append(f"    actual_attr: \"get_state\"")
-                                            yaml_lines.append(f"    expected: '{m}'")
-                                            yaml_lines.append(f"    step_time: 10")  
-                                            yaml_lines.append("")
-                                            time_debt_ms += 10
-                                            
-                                        last_t_orig_ms = t_orig_ms
-
-                                    # =================================================================
-                                    
-                                    yaml_lines.append(f"  - name: \"GUI schließen\"")
-                                    yaml_lines.append(f"    action: \"close_gui\"")
-                                    yaml_lines.append(f"    step_time: 20000")
-                                    yaml_lines.append("")
-
-                                    # --- IN DATEI SPEICHERN ---
-                                    export_dir = "./savegames/replays"
-                                    os.makedirs(export_dir, exist_ok=True)
-                                    yaml_filename = os.path.join(export_dir, f"REPLAY_MATCH{match_id:06d}.yaml")
-
-                                    with open(yaml_filename, 'w', encoding='utf-8') as f:
-                                        f.write("\n".join(yaml_lines))
+                                        # =================================================================
                                         
-                                    print("Export erfolgreich:", f"Replay exportiert nach: {yaml_filename}")
-                                    
+                                        yaml_lines.append(f"  - name: \"GUI schließen\"")
+                                        yaml_lines.append(f"    action: \"close_gui\"")
+                                        yaml_lines.append(f"    step_time: 20000")
+                                        yaml_lines.append("")
+
+                                        # --- IN DATEI SPEICHERN ---
+                                        export_dir = "./savegames/replays"
+                                        os.makedirs(export_dir, exist_ok=True)
+                                        yaml_filename = os.path.join(export_dir, f"REPLAY_MATCH{match_id:06d}.yaml")
+
+                                        with open(yaml_filename, 'w', encoding='utf-8') as f:
+                                            f.write("\n".join(yaml_lines))
+                                            
+                                        print("Export erfolgreich:", f"Replay exportiert nach: {yaml_filename}")
+                                        
                                 except Exception as e:
                                     from tkinter import messagebox
                                     messagebox.showerror("Fehler", f"Fehler beim Exportieren:\n{e}")

@@ -384,12 +384,19 @@ class StateManager:
                         self.match_id = self.get_next_match_id() #Match-ID-Updaten
                         self.SDeluebs.HSobjekt.event_log = [] #Event-Log zurücksetzen
                         self.stand = self.vorbereiten.get()
-                        if self.survival_modus.get()==0: 
-                            self.zyklus.set(0) #ES wird jetzt immer auf 0 gesetzt
-                        else: #Wenn Survival-Modus:                           
-                            self.zyklus.set(0) #ES wird jetzt immer auf 0 gesetzt
-                            self.feuer.trace_remove('write', self.feuer_trace)
-                            self.feuer.set(self.default_feuerzeit)
+                        #if self.survival_modus.get()==0: 
+                        #    self.zyklus.set(0) #ES wird jetzt immer auf 0 gesetzt
+                        #else: #Wenn Survival-Modus:                           
+                        #    self.zyklus.set(0) #ES wird jetzt immer auf 0 gesetzt
+                        #    self.feuer.trace_remove('write', self.feuer_trace)
+                        #    self.feuer.set(self.default_feuerzeit)
+
+                        # Nur noch die Spezialbehandlung für Survival übrig lassen:
+                        if self.survival_modus.get() == 1: 
+                            self.feuer.trace_remove('write', self.feuer_trace)     
+                            self.feuer.set(self.default_feuerzeit) # Zeit-Reset
+                        self.zyklus.set(0)                     # Universeller Reset des Zyklus
+
                         self.SDeluebs.update_graphic()
                         #HardwareDeluebs
                         if self.saveScore.get()==1: self.SDeluebs.KSobjekt.SavePgm_Start()
