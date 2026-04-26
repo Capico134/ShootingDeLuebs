@@ -24,24 +24,40 @@ import subprocess
 import re
 
 def get_current_version():
-    """
-    Zieht sich die aktuelle Version automatisch aus dem Git-Tag.
-    Gibt einen Fallback zurück, falls Git nicht verfügbar ist.
-    """
     try:
-        # Fragt Git nach dem neuesten Tag (z.B. "v1.13.1")
-        git_tag = subprocess.check_output(["git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL).strip().decode("utf-8")
+        # Wir lassen --abbrev=0 weg und nutzen --always
+        # "git describe --tags --always --dirty"
+        # --dirty hängt "-dirty" an, wenn du ungespeicherte Änderungen im Code hast!
+        raw_git = subprocess.check_output(
+            ["git", "describe", "--tags", "--always", "--dirty"], 
+            stderr=subprocess.DEVNULL
+        ).strip().decode("utf-8")
+
+        # Wenn wir direkt auf einem Tag sind, kommt nur "v1.13.4"
+        # Wenn wir weiter sind, kommt "v1.13.4-5-g123abcd"
         
-        # Nutzt dein importiertes 're', um alles außer Zahlen und Punkten zu entfernen 
-        # (macht aus "v1.13.1" sauber "1.13.1")
-        clean_version = re.sub(r'[^\d\.]', '', git_tag)
+        # Wir säubern es für die Anzeige, aber behalten die Info
+        clean_version = raw_git.lstrip('v') 
         return clean_version
         
     except Exception:
-        # FALLBACK: Sehr wichtig! Falls das Spiel mal als reine ZIP-Datei 
-        # (ohne den versteckten .git Ordner) heruntergeladen wird.
-        return "1.13.x (No Git Info)" # So weißt du sofort: Hier fehlt der .git Ordner!
+        # Der Fallback bleibt wichtig für die .zip Nutzer
+        return "1.13.4-zip"
 
+def normalize_version(v_string):
+#    Macht aus 'v1_9_6' oder '1.13.2' ein einheitliches '1.9.6' oder '1.13.2'.
+    if not v_string:
+        return "0.0.0"
+    # 1. Unterstriche durch Punkte ersetzen (v1_9_6 -> v1.9.6)
+    v_clean = v_string.replace('_', '.')
+    # 2. Alles entfernen, was keine Zahl oder Punkt ist (v1.9.6 -> 1.9.6)
+    v_clean = "".join(c for c in v_clean if c.isdigit() or c == '.')
+    # 3. Falls am Ende noch Punkte hängen (z.B. durch '..'), säubern
+    return v_clean.strip('.')
+# Beispiel-Check:
+# normalize_version("v1_9_6") -> "1.9.6"
+# normalize_version("1.13.3") -> "1.13.3"        
+        
 # Die globale Konstante wird jetzt automatisch befüllt!
 VERSION = get_current_version()
 
