@@ -545,14 +545,9 @@ class HighscoreDeluebs:
                                         is_kaenguru   = metadata.get("kaenguru_modus", 0) == 1
                                         is_zufall     = metadata.get("zufall", 0) == 1
                                         
-                                        sp1 = metadata.get("spieler", "Spieler 1")
-                                        sp2 = metadata.get("spieler2", "Spieler 2")
-                                        if sp2 is None: sp2 = "" 
-                                        
-                                        hist_achtung = metadata.get("achtung", 3)
-                                        hist_feuer = metadata.get("default_feuerzeit", metadata.get("feuer", 10))
-                                        vorb         = metadata.get("vorbereiten", 5)
-                                        lg           = metadata.get("ladenGelb", 3)
+                                        #sp1 = metadata.get("spieler", "Spieler 1")
+                                        #sp2 = metadata.get("spieler2", "Spieler 2")
+                                        #if sp2 is None: sp2 = "" 
 
                                         # =================================================================
                                         # --- 2. PROGRAMM-INDEX VIA CSV ERMITTELN ---
@@ -592,7 +587,34 @@ class HighscoreDeluebs:
                                             continue 
 
                                         # =================================================================
-                                        # --- 3. INITIALISIERUNG IM YAML SCHREIBEN ---
+                                        # --- 3. METADATEN NORMALISIEREN & REPLAY-SPEEDUPS ---
+                                        # =================================================================
+                                        # Spieler-Namen absichern (falls sie fehlen oder None sind)
+                                        metadata["spieler"] = metadata.get("spieler", "Spieler 1")
+                                        # Wenn spieler2 'None' oder leer ist, machen wir sicher einen Leerstring "" daraus
+                                        metadata["spieler2"] = metadata.get("spieler2") or "" 
+
+                                        # Fallback für alte Matches mit "Alarmanlage" auf der Konsole
+                                        if "default_feuerzeit" not in metadata:
+                                            fallback_wert = metadata.get("feuer", 10)
+                                            print(f"⚠️ HINWEIS (Match {match_id}): 'default_feuerzeit' fehlt. Nutze Fallback 'feuer' ({fallback_wert}s).")
+                                            metadata["default_feuerzeit"] = fallback_wert
+
+                                        # Originale Ladezeit sichern
+                                        lg = metadata.get("ladenGelb", 3)
+                                        new_lg = lg 
+                                        
+                                        # Smart-Speedups anwenden
+                                        if "(dev)" in programm_name:
+                                            metadata["vorbereiten"] = 1
+                                            metadata["ladenGelb"] = 1
+                                            new_lg = 1
+                                        else:
+                                            new_lg = min(lg, 3)
+                                            metadata["ladenGelb"] = new_lg
+
+                                        # =================================================================
+                                        # --- 4. INITIALISIERUNG & HISTORISCHE ZEITKAPSEL ---
                                         # =================================================================
                                         # Programm laden
                                         yaml_lines.append(f"  - name: \"Programm {prog_index} laden: {base_programm_name}\"")
@@ -609,65 +631,33 @@ class HighscoreDeluebs:
                                         yaml_lines.append(f"    step_time: 250")
                                         yaml_lines.append("")          
 
-                                        # Spielernamen aus der Highscore auslesen und setzen
-                                        yaml_lines.append(f"  - name: \"Spieler 1 aus Highscore setzen\"")
-                                        yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                        yaml_lines.append(f"    wert: [\"spieler\", \"{sp1}\"]")
-                                        yaml_lines.append(f"    step_time: 10")
-                                        yaml_lines.append("")
+                                        # --- DIE ALLGEMEINE SCHLEIFE FÜR ALLE PARAMETER ---
+                                        sync_params = {
+                                            "spieler": "Spieler 1",
+                                            "spieler2": "Spieler 2",
+                                            "achtung": "Achtung-Zeit",
+                                            "default_feuerzeit": "Feuer-Zeit (Startwert)",
+                                            "vorbereiten": "Vorbereitungs-Zeit (inkl. Speedup)",
+                                            "ladenGelb": "Lade-Zeit Gelb (inkl. Speedup)",
+                                            "wiederholungen": "Wiederholungen"
+                                        }
 
-                                        yaml_lines.append(f"  - name: \"Spieler 2 aus Highscore setzen\"")
-                                        yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                        yaml_lines.append(f"    wert: [\"spieler2\", \"{sp2}\"]")
-                                        yaml_lines.append(f"    step_time: 10")
-                                        yaml_lines.append("")
-                                        
-                                        # --- DIE HISTORISCHE ZEITKAPSEL ---
-                                        yaml_lines.append(f"  - name: \"Historische Achtung-Zeit setzen ({hist_achtung}s)\"")
-                                        yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                        yaml_lines.append(f"    wert: [\"achtung\", {hist_achtung}]")
-                                        yaml_lines.append(f"    step_time: 10")
-                                        yaml_lines.append("")
-
-                                        yaml_lines.append(f"  - name: \"Historische Feuer-Zeit setzen ({hist_feuer}s)\"")
-                                        yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                        yaml_lines.append(f"    wert: [\"feuer\", {hist_feuer}]")
-                                        yaml_lines.append(f"    step_time: 10")
-                                        yaml_lines.append("")
-
-                                        # Dev-Override & Smart-Fast-Forward
-                                        new_lg = lg # Standardwert, falls nicht modifiziert
-                                        
-                                        if "(dev)" in programm_name:
-                                            wdh = metadata.get("wiederholungen", 2)
-                                            yaml_lines.append(f"  - name: \"Dev-Override: Vorbereiten auf 1\"")
-                                            yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                            yaml_lines.append(f"    wert: [\"vorbereiten\", 1]")
-                                            yaml_lines.append(f"    step_time: 10")
-                                            yaml_lines.append("")
-                                            
-                                            yaml_lines.append(f"  - name: \"Dev-Override: LadenGelb auf 1\"")
-                                            yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                            yaml_lines.append(f"    wert: [\"ladenGelb\", 1]")
-                                            yaml_lines.append(f"    step_time: 10")
-                                            yaml_lines.append("")
-                                            
-                                            yaml_lines.append(f"  - name: \"Dev-Override: Wiederholungen setzen\"")
-                                            yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                            yaml_lines.append(f"    wert: [\"wiederholungen\", {wdh}]")
-                                            yaml_lines.append(f"    step_time: 10")
-                                            yaml_lines.append("")
-                                            new_lg = 1 # Für die Replay-Zeitberechnung
-                                        else:
-                                            # SMART-SPEEDUP für normale, echte Matches
-                                            new_lg = min(lg, 3)
-                                            if new_lg != lg:
-                                                yaml_lines.append(f"  - name: \"Smart-Override: Wartezeiten auf je max {new_lg}s reduziert\"")
+                                        for key, label in sync_params.items():
+                                            wert = metadata.get(key)
+                                            if wert is not None:
+                                                yaml_lines.append(f"  - name: \"Wert setzen: {label} ({wert})\"")
                                                 yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                                yaml_lines.append(f"    wert: [\"ladenGelb\", {new_lg}]")                                        
+                                                
+                                                # Trick: 'default_feuerzeit' wird im StateManager auf 'feuer' gemappt
+                                                ziel_attribut = "feuer" if key == "default_feuerzeit" else key
+                                                
+                                                # YAML-Formatierung: Strings brauchen Anführungszeichen, Zahlen nicht!
+                                                wert_str = f'"{wert}"' if isinstance(wert, str) else wert
+                                                
+                                                yaml_lines.append(f"    wert: [\"{ziel_attribut}\", {wert_str}]")
                                                 yaml_lines.append(f"    step_time: 10")
                                                 yaml_lines.append("")
-                                            
+
                                         # MODIFIZIERT TAG ENTFERNEN
                                         yaml_lines.append(f"  - name: \"Modifiziert-Tag entfernen\"")
                                         yaml_lines.append(f"    action: \"remove_modifiziert_tag\"")
@@ -681,7 +671,7 @@ class HighscoreDeluebs:
                                         yaml_lines.append("")
 
                                         # =================================================================
-                                        # --- 4. NEUE MATCH TIMELINE VERARBEITUNG (Single-Pass Parser) ---
+                                        # --- 5. NEUE MATCH TIMELINE VERARBEITUNG (Single-Pass Parser) ---
                                         # =================================================================
                                         last_t_orig_ms = 0
                                         current_state = ""
