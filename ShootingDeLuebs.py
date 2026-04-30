@@ -397,7 +397,10 @@ class ShootingDeluebs:
             #self.SMobjekt.remove_tag(SMDeLuebs.Tag.MODIFIZIERT)
             #self.SMobjekt.remove_tag(SMDeLuebs.Tag.ONEMIN)
             self.SMobjekt.system_update_laeuft=False
-            self.SMobjekt.add_tag(SMDeLuebs.Tag.DEVELOPER)                
+            self.SMobjekt.add_tag(SMDeLuebs.Tag.DEVELOPER)         
+        if event.keysym == 'S':
+            print("Lade Meisterschaft Spieler!")
+            self.SMobjekt.setChampionMatch()
         
 class ToolTip:
     def __init__(self, widget, text, delay=500):

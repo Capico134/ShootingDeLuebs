@@ -564,6 +564,17 @@ class StateManager:
             self.clear_tags()
             if self.ton.get()==1: self.SDeluebs.sound_load.play()            
 
+    def setChampionMatch(self):
+        if self.stand==-1: 
+          with open('./savegames/next_match.csv', mode ='r', encoding='utf-8') as file:
+            csvFile = csv.reader(file, skipinitialspace=True)
+            for _ in range(2): #Vorspringen auf die korrekte Zeile
+                csvLine = next(csvFile)
+            self.spieler.set(csvLine[0])
+            self.spieler2.set(csvLine[1])
+            self.clear_tags()
+            if self.ton.get()==1: self.SDeluebs.sound_load.play() 
+
     def check_exclusive_options(self, name: str):
         #Wenn Reihe aktiviert wird, andere abschalten
         if name=='reihe' and self.reihe.get()==1:
