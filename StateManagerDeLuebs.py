@@ -81,7 +81,7 @@ class StateManager:
         self.zyklus_ueberlebt = True        
         self.survival_penalty = 0.4999
         self.survival_relax_time = 5
-        self.default_feuerzeit = 25
+        self.default_feuerzeit = 2
         self.servoDelay = 0.0035
         self.cancel = False #Verwendet für den Resetbutton
         self.match_id = self.get_next_match_id() #print("Match_id",self.match_id) # Könnte man auch mit -1 initialisieren, weil beim Vorbereiten eh neu gesetzt.
@@ -107,7 +107,7 @@ class StateManager:
         init_var('ladenGelb', 3)
         init_var('achtung', 4)
         ##Trace Feuer mit eigener Variable, damit man es abschalten kann. (Beim Survival-Modus ändert sich die Feuerzeit standartmäßig) 
-        self.feuer_trace = init_var('feuer', 2, self.update4feuer2default)[1][0]
+        self.feuer_trace = init_var('feuer', self.default_feuerzeit, self.update4feuer2default)[1][0]
         init_var('wiederholungen', 3, self.update4wiederholungen)
         init_var('scheibenServo', -1)
         init_var('trickWahrsch', 25)
