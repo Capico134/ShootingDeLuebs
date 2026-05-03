@@ -109,8 +109,8 @@ class Klappscheibe:
         #Temporäres Eventlog (bei jedem Eintrag)
         # Prüfen ob wir auf dem Pi (Linux) oder Windows sind
         if platform.system() == "Linux":
-            LIVE_DIR = "/dev/shm/shooting_live"
-            self.LIVE_PATH = LIVE_DIR+"/live_match.json"
+            self.LIVE_DIR = "/dev/shm/shooting_live"
+            self.LIVE_PATH = self.LIVE_DIR+"/live_match.json"
             os.chmod(self.LIVE_DIR, 0o777)
         else:
             # Unter Windows einfach in den lokalen Temp-Ordner oder ein Unterverzeichnis
