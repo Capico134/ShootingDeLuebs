@@ -4,6 +4,7 @@ from enum import Enum
 #from typing import Callable, Optional 
 import csv
 import os # Um die ID für das Logevent zu finden
+import platform #Um den Speicherort für das temporäre Eventlog festzulegen
 
 from enum import Enum
 class GameState(Enum):
@@ -55,6 +56,26 @@ class StateManager:
         self.Tag = Tag # <--- NEU: Wir binden die Klasse an das Objekt!
         self._tags = set()
         self.system_update_laeuft = False
+
+        #Temporäres Eventlog (bei jedem Eintrag)
+        self.last_mtime = 0
+        # Prüfen ob wir auf dem Pi (Linux) oder Windows sind
+        if platform.system() == "Linux":
+            self.LIVE_DIR = "/dev/shm/shooting_live"
+            os.makedirs(self.LIVE_DIR, exist_ok=True)
+            os.chmod(self.LIVE_DIR, 0o777)
+            self.LIVE_PATH = self.LIVE_DIR+"/live_match.json"
+            self.NEXT_MATCH_PATH = self.LIVE_DIR+"/next_match.csv"
+        else:
+            # Unter Windows einfach in den lokalen Temp-Ordner oder ein Unterverzeichnis
+            self.LIVE_PATH =       os.path.join(os.getcwd(), "savegames", "live_match.json")
+            self.NEXT_MATCH_PATH = os.path.join(os.getcwd(), "savegames", "next_match.csv")
+            os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)           
+
+
+
+
+
     
         # Dictionary zur Nachverfolgung aller Traces
         #Dieses enthält Listen in dennen die Traces sind. self.trace_ids[name][0] zeigt immer auf self.set_modus_to_custom. Ggf. sind weitere in der Liste vorhanden.  
@@ -531,7 +552,7 @@ class StateManager:
 
     def setProgramm(self,pgmNr: int):
         #print(f"pgmNr {pgmNr}")
-        if self.stand==-1: 
+        if self.get_state()==GameState.SICHERHEIT: 
           with open('Programme.csv', mode ='r', encoding='utf-8') as file:
             csvFile = csv.reader(file, skipinitialspace=True)
             for _ in range(pgmNr+3): #Vorspringen auf die korrekte Zeile
@@ -565,15 +586,37 @@ class StateManager:
             if self.ton.get()==1: self.SDeluebs.sound_load.play()            
 
     def setChampionMatch(self):
-        if self.stand==-1: 
-          with open('./savegames/next_match.csv', mode ='r', encoding='utf-8') as file:
-            csvFile = csv.reader(file, skipinitialspace=True)
-            for _ in range(2): #Vorspringen auf die korrekte Zeile
-                csvLine = next(csvFile)
-            self.spieler.set(csvLine[0])
-            self.spieler2.set(csvLine[1])
-            self.clear_tags()
-            if self.ton.get()==1: self.SDeluebs.sound_load.play() 
+        # Wir wollen vermutlich nur neue Namen laden, wenn gerade KEIN Match läuft (-1)
+        if self.get_state()==GameState.SICHERHEIT: 
+            live_file = self.NEXT_MATCH_PATH
+            # Initialisierung, falls die Variable beim ersten Start noch nicht existiert
+            if not hasattr(self, 'last_mtime'):
+                self.last_mtime = 0
+            # 1. GIBT ES DIE DATEI ÜBERHAUPT?
+            if not os.path.exists(live_file):
+                self.last_mtime = 0
+            else:
+                # 2. DATEI IST DA -> PRÜFEN OB NEU!
+                current_mtime = os.path.getmtime(live_file)
+                if current_mtime > self.last_mtime:
+                    try:            
+                        with open(live_file, mode='r', encoding='utf-8') as file:
+                            csvFile = csv.reader(file, skipinitialspace=True)
+                            for _ in range(2): # Vorspringen auf die korrekte Zeile
+                                csvLine = next(csvFile)
+                            self.spieler.set(csvLine[0])
+                            self.spieler2.set(csvLine[1])
+                            self.clear_tags()
+                            if self.ton.get() == 1: 
+                                self.SDeluebs.sound_load.play() 
+                            # WICHTIG: Zeitstempel merken, damit wir es nicht doppelt lesen!
+                            self.last_mtime = current_mtime
+                    except Exception as e:
+                        pass # Lese-Kollision ignorieren, in einer Sekunde versucht er es eh nochmal 
+        # 3. DER HERZSCHLAG
+        # Das hier muss GANZ ans Ende, außerhalb aller if-Bedingungen.
+        # So prüft der Pi unermüdlich jede Sekunde, ob es was Neues gibt.
+        self.SDeluebs.root.after(1000, self.setChampionMatch)                   
 
     def check_exclusive_options(self, name: str):
         #Wenn Reihe aktiviert wird, andere abschalten

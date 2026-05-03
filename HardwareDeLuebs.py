@@ -1,6 +1,5 @@
 import os #Um die Version zu dedektieren
 import re #Um die Version zu dedektieren
-import platform #Um den Speicherort für das temporäre Eventlog festzulegen
 import json #Um Eventlog zu speichern
 #import importlib #Um Importe mittels String durchzuführen
 #Version aus Dateinamen extrahieren
@@ -106,18 +105,6 @@ class Klappscheibe:
         self.blinking = [False, False, False, False, False]
         self.LEDsOff()
         
-        #Temporäres Eventlog (bei jedem Eintrag)
-        # Prüfen ob wir auf dem Pi (Linux) oder Windows sind
-        if platform.system() == "Linux":
-            self.LIVE_DIR = "/dev/shm/shooting_live"
-            os.makedirs(self.LIVE_DIR, exist_ok=True)
-            os.chmod(self.LIVE_DIR, 0o777)
-            self.LIVE_PATH = self.LIVE_DIR+"/live_match.json"
-        else:
-            # Unter Windows einfach in den lokalen Temp-Ordner oder ein Unterverzeichnis
-            self.LIVE_PATH = os.path.join(os.getcwd(), "savegames", "live_match.json")
-            os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)           
-
     @property
     def SM(self):
         return self.SDeluebs.SMobjekt
@@ -620,9 +607,9 @@ class Klappscheibe:
         self.match_timeline.append(snapshot)    
         # Event in temporärer Datei ablegen
         try:
-            #os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)
+            #os.makedirs(os.path.dirname(self.SM.LIVE_PATH), exist_ok=True)
             # Datei atomar überschreiben
-            with open(self.LIVE_PATH, "w") as f:
+            with open(self.SM.LIVE_PATH, "w") as f:
                 # WICHTIG: indent=4 macht die Zeilenumbrüche und Einrückungen
                 # ensure_ascii=False sorgt dafür, dass Umlaute (ü) lesbar bleiben
                 json.dump(self.match_timeline, f, indent=4, ensure_ascii=False) 
