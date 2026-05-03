@@ -110,8 +110,9 @@ class Klappscheibe:
         # Prüfen ob wir auf dem Pi (Linux) oder Windows sind
         if platform.system() == "Linux":
             self.LIVE_DIR = "/dev/shm/shooting_live"
-            self.LIVE_PATH = self.LIVE_DIR+"/live_match.json"
+            os.makedirs(self.LIVE_DIR, exist_ok=True)
             os.chmod(self.LIVE_DIR, 0o777)
+            self.LIVE_PATH = self.LIVE_DIR+"/live_match.json"
         else:
             # Unter Windows einfach in den lokalen Temp-Ordner oder ein Unterverzeichnis
             self.LIVE_PATH = os.path.join(os.getcwd(), "savegames", "live_match.json")
@@ -619,7 +620,7 @@ class Klappscheibe:
         self.match_timeline.append(snapshot)    
         # Event in temporärer Datei ablegen
         try:
-            os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)
+            #os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)
             # Datei atomar überschreiben
             with open(self.LIVE_PATH, "w") as f:
                 # WICHTIG: indent=4 macht die Zeilenumbrüche und Einrückungen
