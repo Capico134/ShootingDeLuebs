@@ -1,5 +1,7 @@
 import os #Um die Version zu dedektieren
 import re #Um die Version zu dedektieren
+import platform #Um den Speicherort für das temporäre Eventlog festzulegen
+import json #Um Eventlog zu speichern
 #import importlib #Um Importe mittels String durchzuführen
 #Version aus Dateinamen extrahieren
 #filename = os.path.basename(__file__)
@@ -103,6 +105,17 @@ class Klappscheibe:
         self.blink_freq = 167  # Initialisiere die Blinkfrequenz in Millisekunden
         self.blinking = [False, False, False, False, False]
         self.LEDsOff()
+        
+        #Temporäres Eventlog (bei jedem Eintrag)
+        # Prüfen ob wir auf dem Pi (Linux) oder Windows sind
+        if platform.system() == "Linux":
+            LIVE_DIR = "/dev/shm/shooting_live"
+            self.LIVE_PATH = LIVE_DIR+"/live_match.json"
+            os.chmod(self.LIVE_DIR, 0o777)
+        else:
+            # Unter Windows einfach in den lokalen Temp-Ordner oder ein Unterverzeichnis
+            self.LIVE_PATH = os.path.join(os.getcwd(), "savegames", "live_match.json")
+            os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)           
 
     @property
     def SM(self):
@@ -604,6 +617,17 @@ class Klappscheibe:
                 f"{prefix}ij":  1 if p.is_jaeger else 0 # 1/0 spart Platz gegenüber true/false
             })
         self.match_timeline.append(snapshot)    
+        # Event in temporärer Datei ablegen
+        try:
+            os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)
+            # Datei atomar überschreiben
+            with open(self.LIVE_PATH, "w") as f:
+                # WICHTIG: indent=4 macht die Zeilenumbrüche und Einrückungen
+                # ensure_ascii=False sorgt dafür, dass Umlaute (ü) lesbar bleiben
+                json.dump(self.match_timeline, f, indent=4, ensure_ascii=False) 
+        except Exception as e:
+            print(f"RAM-Disk Fehler: {e}")
+        
     #return snapshot
 
     def set_ziel_wahl_replay(self, w_liste):
