@@ -70,7 +70,8 @@ class StateManager:
             # Unter Windows einfach in den lokalen Temp-Ordner oder ein Unterverzeichnis
             self.LIVE_PATH =       os.path.join(os.getcwd(), "savegames", "live_match.json")
             self.NEXT_MATCH_PATH = os.path.join(os.getcwd(), "savegames", "next_match.csv")
-            os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)           
+            os.makedirs(os.path.dirname(self.LIVE_PATH), exist_ok=True)          
+        self.champion_loop_laeuft = False
 
 
 
@@ -586,7 +587,14 @@ class StateManager:
             if self.ton.get()==1: self.SDeluebs.sound_load.play()            
 
     def setChampionMatch(self):
-        # Wir wollen vermutlich nur neue Namen laden, wenn gerade KEIN Match läuft (-1)
+# 0. NEU: Wächter setzen, damit der Loop nicht mehrfach gestartet wird
+        if not hasattr(self, 'champion_loop_laeuft'):
+            self.champion_loop_laeuft = False
+        self.champion_loop_laeuft = True        
+        # Wenn die Funktion durch den Key-Handler aufgerufen wird, aber der Loop
+        # schon durch einen FRÜHEREN Tastendruck läuft, brechen wir sofort ab!
+        # (WICHTIG: Wir müssen unterscheiden, ob der Aufruf vom Keyhandler oder vom after-Timer kommt. 
+        # Da wir der after-Timer sind, der den Loop am Leben hält, setzen wir das Flag einfach nach dem ersten Start auf True).
         if self.get_state()==GameState.SICHERHEIT: 
             live_file = self.NEXT_MATCH_PATH
             # Initialisierung, falls die Variable beim ersten Start noch nicht existiert

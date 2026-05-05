@@ -85,6 +85,8 @@ class ShootingDeluebs:
         self.sound_buzzticker = self.audio.sound_buzzticker
         self.sound_shoot = self.audio.sound_shoot
         
+        # Sorgt dafür, dass bei jedem Linksklick geprüft wird, ob der Fokus gelöscht werden muss
+        self.root.bind_all("<Button-1>", self.fokus_leeren)
         
         self.hintergrundbilder = {}
 
@@ -249,9 +251,24 @@ class ShootingDeluebs:
         btn_down = tk.Button(bottom_row, text="▼", font=('Arial', 20-FONT_reduction), command=command_down, width=3)
         btn_down.pack(side=tk.RIGHT, padx=2, pady=0, ipadx=0, ipady=1)
 
-        entry = tk.Entry(bottom_row, textvariable=var, justify='center', bg=bg, font=('Arial', 20-FONT_reduction), width=17)
+        #entry = tk.Entry(bottom_row, textvariable=var, justify='center', bg=bg, font=('Arial', 20-FONT_reduction), width=17)
+        
+        tuersteher = (frame.register(self.nur_zahlen_erlaubt), '%P')
+        # --- GEÄNDERT: Das Entry-Feld bekommt die validate-Parameter ---
+        entry = tk.Entry(bottom_row, textvariable=var, justify='center', bg=bg, font=('Arial', 20-FONT_reduction), width=17,
+                         validate="key", validatecommand=tuersteher)        
         entry.pack(side=tk.RIGHT, padx=4, pady=0, ipadx=0, ipady=6)
         return entry
+
+    def nur_zahlen_erlaubt(self, neu_text):
+        """
+        Prüft, ob die Eingabe nur aus Ziffern besteht.
+        Leerer Text ("") muss erlaubt sein, damit man mit Backspace/Entf alles löschen kann.
+        """
+        if neu_text == "" or neu_text.isdigit():
+            return True
+        else:
+            return False
 
     def create_checkbutton(self, frame, text, var, tooltip_text=None):
             if hasattr(self.KSobjekt.LEDs[0], "on_angle_change"): 
@@ -362,8 +379,23 @@ class ShootingDeluebs:
         # Asynchroner Start: Das Spiel läuft flüssig weiter!
         threading.Thread(target=run, daemon=True).start()
 
+    def fokus_leeren(self, event):
+        """
+        Prüft bei jedem Klick: Wenn nicht in ein Textfeld geklickt wurde, 
+        nimm den Fokus aus dem Textfeld weg und gib ihn dem Hintergrund.
+        """
+        # Wenn das angeklickte Element KEIN Texteingabefeld ist...
+        if event.widget.winfo_class() not in ('Entry', 'TEntry', 'Text'):
+            # ... dann gib dem angeklickten Element (z.B. dem grauen Hintergrund) den Fokus!
+            event.widget.focus_set()
+
     
     def key_handler(self, event=None):
+        # --- NEU: Der Eingabefeld-Schutzschild ---
+        # Wenn der Cursor in einem Text- oder Entry-Feld steht, ignoriere alle globalen Shortcuts!
+        if event.widget.winfo_class() in ('Entry', 'TEntry', 'Text'):
+            return        
+            
         if event and event.keysym.startswith('F'):
             try:
                 f_num = int(event.keysym[1:])
@@ -399,8 +431,14 @@ class ShootingDeluebs:
             self.SMobjekt.system_update_laeuft=False
             self.SMobjekt.add_tag(SMDeLuebs.Tag.DEVELOPER)         
         if event.keysym == 'S':
-            print("Lade Meisterschaft Spieler!")
-            self.SMobjekt.setChampionMatch()
+            if not getattr(self.SMobjekt, 'champion_loop_laeuft', False):
+                print("Lade Meisterschaft Spieler (Loop gestartet)!")
+                self.SMobjekt.setChampionMatch()
+            else:
+                print("Ignoriert: Meisterschafts-Loop läuft bereits!")
+#        if event.keysym == 'S':
+#            print("Lade Meisterschaft Spieler!")
+#            self.SMobjekt.setChampionMatch()
         
 class ToolTip:
     def __init__(self, widget, text, delay=500):
