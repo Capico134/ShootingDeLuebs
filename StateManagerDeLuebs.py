@@ -191,7 +191,7 @@ class StateManager:
 
         self.string_info_kaenguru = \
                'Klappscheibe: Känguru-Modus' + \
-             '\n-Die Ziele "hüpfen"! Trifft ein Spieler sein Ziel, springt dieses sofort auf eine neue Position.'+ \
+             '\n-Die Ziele "hüpfen"! Trifft ein Spieler sein Ziel, springt dieses sofort auf eine neue (freie) Position.'+ \
              '\n-Ein dynamisches Reaktions- und Verfolgungsspiel.'+ \
              '\n-Die Variable ScheibenServo bestimmt hierbei die Anzahl der Sprünge je Zyklus.'
 
