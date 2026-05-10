@@ -122,10 +122,18 @@ class ShootingDeluebs:
         self.MyCanvas['background'] = 'orange'
         
         with zipfile.ZipFile("data.pak", "r") as pak:        
-            #Logo
-            self.mein_logo = tk.PhotoImage(data=pak.read('Logo.png'))
-            self.logo = self.MyCanvas.create_image(205, 130, image=self.mein_logo)
-        #     #Mit Pillow
+        #Mit Pillow
+            img_data = pak.read('Logo.png')
+            pil_img = Image.open(io.BytesIO(img_data))
+            # Diese Referenz wird durch den Launcher-Patch automatisch skaliert!
+            self.mein_logo = ImageTk.PhotoImage(pil_img)        
+        # Im Canvas nur noch verwenden
+        self.logo_id = self.MyCanvas.create_image(205, 130, image=self.mein_logo)
+       #Logo ohne Pillow
+       #     self.mein_logo = tk.PhotoImage(data=pak.read('Logo.png'))
+       #     self.logo = self.MyCanvas.create_image(205, 130, image=self.mein_logo)
+       #Hintergrundbild
+       #     #Mit Pillow
        #      img = Image.open(io.BytesIO(pak.read("Hintergrundv06.png"))) 
        #      tk_img = ImageTk.PhotoImage(img)
        #      self.MyCanvas.create_image(0, 0, anchor="nw", image=tk_img)

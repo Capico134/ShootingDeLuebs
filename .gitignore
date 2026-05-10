@@ -3,3 +3,4 @@ debug_log.txt
 savegames/
 __pycache__/
 *.pyc
+_temp_launcher.py
