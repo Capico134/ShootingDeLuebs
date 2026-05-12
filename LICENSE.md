@@ -13,3 +13,8 @@ Die Software "Shooting DeLübs" wird unter den Bedingungen der CC BY-NC-SA 4.0 z
 - **Namensnennung:** Sie müssen angemessene Urheber- und Rechteangaben machen, einen Link zur Lizenz beifügen und angeben, ob Änderungen vorgenommen wurden.
 - **Nicht-kommerziell:** Sie dürfen das Material nicht für kommerzielle Zwecke nutzen.
 - **Weitergabe unter gleichen Bedingungen:** Wenn Sie das Material remixen, verändern oder anderweitig direkt darauf aufbauen, dürfen Sie Ihre Beiträge nur unter derselben Lizenz wie das Original verbreiten.
+
+---
+
+### Haftungsausschluss (Disclaimer)
+Diese Software wird "wie besehen" (as is) und ohne jegliche ausdrückliche oder stillschweigende Gewährleistung zur Verfügung gestellt. Der Urheber übernimmt keine Haftung für Fehler in der Software, Datenverluste (z.B. von Turnierständen) oder Schäden, die durch die Nutzung dieses Programms entstehen. Die Nutzung erfolgt vollständig auf eigene Gefahr.
