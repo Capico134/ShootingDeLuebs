@@ -402,9 +402,15 @@ class StateManager:
                     #Hier Wechsel zu Vorbereiten
                     if self.get_state()==GameState.SICHERHEIT: 
                         self.laufzeit = time.monotonic()        
+
+                        #Rücksetzen von Durchgangspunkten und dem Eventlog <- NEU NACH OBEN GEZOGEN!
+                        if self.saveScore.get()==1: self.SDeluebs.KSobjekt.SavePgm_Start()
+                        self.SDeluebs.KSobjekt.Reset_durchgang()
+                        self.SDeluebs.KSobjekt.match_timeline.clear()
+                        self.SDeluebs.HSobjekt.event_log = [] #Event-Log zurücksetzen
+
                         self.set_state(GameState.VORBEREITEN)
                         self.match_id = self.get_next_match_id() #Match-ID-Updaten
-                        self.SDeluebs.HSobjekt.event_log = [] #Event-Log zurücksetzen
                         self.stand = self.vorbereiten.get()
                         #if self.survival_modus.get()==0: 
                         #    self.zyklus.set(0) #ES wird jetzt immer auf 0 gesetzt
@@ -421,10 +427,7 @@ class StateManager:
 
                         self.SDeluebs.update_graphic()
                         #HardwareDeluebs
-                        if self.saveScore.get()==1: self.SDeluebs.KSobjekt.SavePgm_Start()
-                        self.SDeluebs.KSobjekt.Reset_durchgang()
                         if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos() 
-                        self.SDeluebs.KSobjekt.match_timeline.clear()
                 
                                          
                     #Hier Wechsel zu Laden
