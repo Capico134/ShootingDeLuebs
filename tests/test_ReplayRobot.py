@@ -226,6 +226,11 @@ class TestShootingDeLuebsGUI(unittest.TestCase):
         self.app.pytaster.handle_button_press(key, True)
         self.root.after(20, lambda: self.app.pytaster.handle_button_press(key, False))
 
+    def anulliere_zyklus(self, player_idx: int):
+        """Simuliert den Tastendruck des Schiedsrichters (VAR-Eingriff)."""
+        print(f"⚖️ VAR-Eingriff: Annulliere Zyklus für Spieler {player_idx}...")
+        self.app.KSobjekt.Anulliere_zyklus2durchgang(player_idx)
+
     def close_gui(self):
         print("🛑 GUI wird geschlossen...")
         try:

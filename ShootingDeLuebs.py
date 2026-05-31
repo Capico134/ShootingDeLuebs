@@ -76,6 +76,7 @@ class ShootingDeluebs:
         # self.tts.say("...") und self.sound_win.play() funktionieren weiter!
         self.tts = self.audio
         self.sound_win = self.audio.sound_win
+        self.sound_wrong = self.audio.sound_wrong
         self.sound0 = self.audio.sound0
         self.sound1 = self.audio.sound1
         self.sound_error = self.audio.sound_error
@@ -417,7 +418,9 @@ class ShootingDeluebs:
                         self.SMobjekt.setProgramm(f_num - 1)  # z.B. F1 → 0, F2 → 1, ...
             except ValueError:
                 pass
-        if event.keysym=='Control_L' and self.SMobjekt.stand==-1: self.SMobjekt.buttonCountdownClick() #Standabfrage ist hier, da Knopf verschwindet und der Button aktiv bleibt
+        if event.keysym=='Control_L' and self.SMobjekt.stand==-1: 
+            print("Start")
+            self.SMobjekt.buttonCountdownClick() #Standabfrage ist hier, da Knopf verschwindet und der Button aktiv bleibt
         if event.keysym=='Escape': self.SMobjekt.buttonResetClick() #and not self.SMobjekt.stand==-1 #standabfrage ist in der Funktion
         if event.keysym=='Tab': 
             if not self.SMobjekt.has_tag(SMDeLuebs.Tag.MODIFIZIERT):
@@ -444,6 +447,10 @@ class ShootingDeluebs:
                 self.SMobjekt.setChampionMatch()
             else:
                 print("Ignoriert: Meisterschafts-Loop läuft bereits!")
+        if event.keysym == 'less':
+            self.KSobjekt.Anulliere_zyklus2durchgang(0)
+        if event.keysym == 'minus':
+            self.KSobjekt.Anulliere_zyklus2durchgang(1)            
 #        if event.keysym == 'S':
 #            print("Lade Meisterschaft Spieler!")
 #            self.SMobjekt.setChampionMatch()

@@ -517,6 +517,27 @@ class Klappscheibe:
             player.punkte_durchgang = player.punkte_durchgang +  player.punkte_zyklus
             player.speedpunkte_durchgang = player.speedpunkte_durchgang + player.speedpunkte_zyklus
     
+    def Anulliere_zyklus2durchgang(self, player_idx):
+        if not self.SM.get_state().is_action_state() and self.SM.get_state() != GameState.SICHERHEIT:
+            player = self.players[player_idx]
+            
+            # Wenn die Zykluspunkte schon 0 sind (weil wir schon geklickt haben), brich direkt ab!
+            # So verhindern wir auch, dass der Sound mehrmals kommt oder das Event-Log vollgemüllt wird.
+            if player.punkte_zyklus == 0 and player.speedpunkte_zyklus == 0:
+                return 
+
+            # 1. Punkte abziehen
+            player.punkte_durchgang = player.punkte_durchgang - player.punkte_zyklus
+            player.speedpunkte_durchgang = player.speedpunkte_durchgang - player.speedpunkte_zyklus
+            
+            # 2. Zyklus nullen (Das ist unser "Stateless"-Trick!)
+            player.punkte_zyklus = 0
+            player.speedpunkte_zyklus = 0
+            
+            self.append_event_snapshot("anulliere_zyklus", player_idx=player_idx)
+            if self.SM.ton.get() == 1:
+                self.SDeluebs.sound_wrong.play()        
+    
     def SaveHighscore_zyklus(self):
         #Debugging
         with open("debug_log.txt", "a") as logfile:

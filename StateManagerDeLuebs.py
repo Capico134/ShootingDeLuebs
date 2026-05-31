@@ -106,6 +106,7 @@ class StateManager:
         self.default_feuerzeit = 2
         self.servoDelay = 0.0035
         self.cancel = False #Verwendet für den Resetbutton
+        #annutig_beendet = False
         self.match_id = self.get_next_match_id() #print("Match_id",self.match_id) # Könnte man auch mit -1 initialisieren, weil beim Vorbereiten eh neu gesetzt.
         self.aktuelle_replay_id = None
         self._base_programm_name = "Default"
@@ -479,44 +480,57 @@ class StateManager:
                 #Hier Programmende erreicht.
                 else: 
                     #HardwareDeluebs
-                    self.buttonResetClick()
-                    if self.saveScore.get() == 1:#  and self.aktuelle_replay_id is None: 
-                        # 1. Highscore speichern und die Daten "auffangen"
-                        hs_entry = self.SDeluebs.KSobjekt.SaveHighscore_durchgang() 
-                        # (Hinweis: Stelle sicher, dass SaveHighscore_durchgang das hs_entry auch mit 'return' an diese Stelle zurückgibt!)
-                        # 2. Beides zusammen an save_match übergeben
-                        self.SDeluebs.HSobjekt.save_match(self.SDeluebs.KSobjekt.match_timeline, hs_entry)
-                        # 3. Aufräumen
-                        self.SDeluebs.KSobjekt.match_timeline.clear()
+                    self.buttonResetClick(manuell_abgebrochen=False)
+                    
+                    #if self.saveScore.get() == 1:#  and self.aktuelle_replay_id is None: 
+                    #    # 1. Highscore speichern und die Daten "auffangen"
+                    #    hs_entry = self.SDeluebs.KSobjekt.SaveHighscore_durchgang() 
+                    #    # (Hinweis: Stelle sicher, dass SaveHighscore_durchgang das hs_entry auch mit 'return' an diese Stelle zurückgibt!)
+                    #    # 2. Beides zusammen an save_match übergeben
+                    #    self.SDeluebs.HSobjekt.save_match(self.SDeluebs.KSobjekt.match_timeline, hs_entry)
+                    #    # 3. Aufräumen
+                    #    self.SDeluebs.KSobjekt.match_timeline.clear()
         #self.cancel = False     #Evtl nicht merhr wichtig
 
-    def buttonResetClick(self):
+    def buttonResetClick(self, manuell_abgebrochen=True):
         if not self.stand==-1 and (self.get_state() is not GameState.RESET):
-            #print('Oh Mann')
-            self.cancel = True #Abbrechen sofern noch ein Loop läuft 
-            ##Reset-Bildschirm
+            self.cancel = True 
+            
             self.set_state(GameState.RESET)
             self.stand = 'Warten'
             self.SDeluebs.update_graphic()
-            if self.survival_modus.get()==1: #Wiedereinschalten sofern der Trace für Feuer durch den Survival-Modus ausgeschaltet wurde.
+            if self.survival_modus.get()==1: 
                 self.feuer_trace = self.feuer.trace_add('write', self.set_modus_to_custom) 
-            #HardwareDeLuebs
             if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos()
-            #time.sleep(3)
-            #self.root.after(int(30000), self.sleep_after) 
-            self.SDeluebs.root.after(int(4000), self.continueRestetClick)            
+            
+            # --- DER STAFFELSTAB: Wir reichen die lokale Variable direkt an die nächste Funktion weiter! ---
+            self.SDeluebs.root.after(5000, lambda: self.continueRestetClick(manuell_abgebrochen))
     
-    def continueRestetClick(self):
+    # Die Funktion nimmt den Staffelstab jetzt einfach entgegen
+    def continueRestetClick(self, manuell_abgebrochen=False):
+        
+        # 1. DAS FINALE SPEICHERN
+        # Wir fragen direkt den Parameter ab, kein 'self.' nötig!
+        if not manuell_abgebrochen and self.saveScore.get() == 1:
+            hs_entry = self.SDeluebs.KSobjekt.SaveHighscore_durchgang() 
+            self.SDeluebs.HSobjekt.save_match(self.SDeluebs.KSobjekt.match_timeline, hs_entry)
+            self.SDeluebs.KSobjekt.match_timeline.clear()
+
+        # =========================================================
+        # 2. REGULÄRES AUFRÄUMEN
+        # =========================================================
         self.set_state(GameState.SICHERHEIT)
         self.zyklus_ueberlebt = True
         self.SDeluebs.update_graphic()
         self.SDeluebs.update_hauptlabel()
-        #HardwareDeLuebs
+        
+        # HardwareDeLuebs
         self.SDeluebs.KSobjekt.LEDsOff()
         if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos()
         self.SDeluebs.buttonStart.place(x=210, y=920, width=145-40, height=80)    
-        self.stand = -1 #Erst wenn self.stand wieder -1 ist, kann ein neues Spiel mit Strg gestartet werden.
-        self.cancel = False #Neu bei dieser Methode hinzugefügt
+        
+        self.stand = -1 
+        self.cancel = False # Setzt den generellen Abbruch-Schutz wieder zurück
     
     def vorbereiten_up(self):
         self.vorbereiten.set(self.vorbereiten.get() + 1)

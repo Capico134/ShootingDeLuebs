@@ -28,6 +28,8 @@ class AudioManager:
                 self.sound_pfeife.set_volume(0.9)
                 self.sound_win = pygame.mixer.Sound(io.BytesIO(pak.read('goodresult-82807.mp3')))
                 self.sound_win.set_volume(0.9)
+                self.sound_wrong = pygame.mixer.Sound(io.BytesIO(pak.read('cartoon-music-game-sfx-wrong-buzzer-single-513021.wav')))
+                self.sound_wrong.set_volume(0.9)
                 self.sound_load = pygame.mixer.Sound(io.BytesIO(pak.read('new-notification-07-210334.mp3')))
                 self.sound_load.set_volume(0.9)         
                 self.sound_orchestra = pygame.mixer.Sound(io.BytesIO(pak.read('11325622-orchestra-hit-240475.wav')))

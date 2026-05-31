@@ -472,6 +472,18 @@ class HighscoreDeluebs:
                                             line = f"{t} | {tref} | {zyk:^4} | {'SHOT':<8} | {v:^4} | {w:^18} | {p1:^18} | {p2:^18}\n"
                                             event_details += line
                                             last_action_was_state = False
+
+                                        # --- NEU: Das VAR-Eingriff Layout ---
+                                        elif action == "anulliere_zyklus":
+                                            p_idx = ev.get('p', -1)
+                                            # Wir setzen den Text genau in die Spalte des betroffenen Spielers!
+                                            p1_text = "[ ANNULLIERT ]" if p_idx == 0 else ""
+                                            p2_text = "[ ANNULLIERT ]" if p_idx == 1 else ""
+                                            
+                                            # Formatierung passend zum mini_h Header
+                                            line = f"{t} | {tref} | {zyk:^4} | {'VAR':<8} | {' ':^4} | {'Manuelle Korrektur':^18} | {p1_text:^18} | {p2_text:^18}\n"
+                                            event_details += line
+                                            last_action_was_state = False
                                             
                                         else:
                                             # --- NEU: Catch-All für unbekannte Events ---
@@ -734,12 +746,14 @@ class HighscoreDeluebs:
                                                         accumulated_delay_ms = 0 # Stapel resetten
                                                         time_debt_ms += 50
                                                         
-                                            elif action_type == "shoot":
-                                                # Die Schuss-Wartezeit inkl. Stapel
+                                            # --- ZENTRALE AKTIONEN (Schuss & VAR-Eingriff) ---
+                                            elif action_type in ["shoot", "anulliere_zyklus"]:
+                                                
+                                                # ==========================================
+                                                # 1. GEMEINSAME ZEITVERWALTUNG
+                                                # ==========================================
                                                 delta_new_ms = delta_new_ms + accumulated_delay_ms
                                                 accumulated_delay_ms = 0 # Stapel leeren
-                                                
-                                                ## Cooldown garantieren
                                                 delta_new_ms = max(50, delta_new_ms)
 
                                                 # Zeitschulden abbauen
@@ -747,27 +761,40 @@ class HighscoreDeluebs:
                                                     abbau_debt = min(delta_new_ms, time_debt_ms) 
                                                     delta_new_ms -= abbau_debt         
                                                     time_debt_ms -= abbau_debt 
-                                                    
-                                                wert = ev.get('v', 0)
-                                                
-                                                # Der eigentliche Schuss
-                                                yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
-                                                yaml_lines.append(f"    action: \"shoot\"")
-                                                yaml_lines.append(f"    wert: {wert}")
-                                                yaml_lines.append(f"    step_time: {delta_new_ms}")
-                                                yaml_lines.append("")
-                                                
-                                                # Historisches Folgeziel sofort nachschieben
-                                                w_historisch = ev.get('w', [])
-                                                if w_historisch and is_kaenguru:
-                                                    yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
-                                                    yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                    yaml_lines.append(f"    wert: [{w_historisch}]")
-                                                    yaml_lines.append(f"    step_time: 0")
-                                                    yaml_lines.append("")                                            
 
-                                                # Statusprüfung anhängen
-                                                yaml_lines.append(f"  - name: \"Prüfe Status nach Schuss auf {wert}\"")
+                                                # ==========================================
+                                                # 2. SPEZIFISCHER YAML-EXPORT
+                                                # ==========================================
+                                                if action_type == "shoot":
+                                                    wert = ev.get('v', 0)
+                                                    yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
+                                                    yaml_lines.append(f"    action: \"shoot\"")
+                                                    yaml_lines.append(f"    wert: {wert}")
+                                                    yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                                    yaml_lines.append("")
+                                                    
+                                                    # Historisches Folgeziel sofort nachschieben
+                                                    w_historisch = ev.get('w', [])
+                                                    if w_historisch and is_kaenguru:
+                                                        yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
+                                                        yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                        yaml_lines.append(f"    wert: [{w_historisch}]")
+                                                        yaml_lines.append(f"    step_time: 0")
+                                                        yaml_lines.append("")
+                                                        
+                                                elif action_type == "anulliere_zyklus":
+                                                    p_idx = ev.get('p', 0)
+                                                    yaml_lines.append(f"  - name: \"VAR-Eingriff: Annulliere Zyklus für Spieler {p_idx} (Zyklus {z})\"")
+                                                    yaml_lines.append(f"    action: \"anulliere_zyklus\"")
+                                                    yaml_lines.append(f"    wert: {p_idx}")
+                                                    yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                                    yaml_lines.append("")
+
+                                                # ==========================================
+                                                # 3. GEMEINSAME STATUSPRÜFUNG FÜR DEN ROBOTER
+                                                # ==========================================
+                                                aktion_text = f"Schuss auf {wert}" if action_type == "shoot" else "VAR-Eingriff"
+                                                yaml_lines.append(f"  - name: \"Prüfe Status nach {aktion_text}\"")
                                                 yaml_lines.append(f"    actual_attr: \"get_state\"")
                                                 yaml_lines.append(f"    expected: '{m}'")
                                                 yaml_lines.append(f"    step_time: 10")  
