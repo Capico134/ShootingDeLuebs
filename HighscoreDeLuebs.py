@@ -382,6 +382,13 @@ class HighscoreDeluebs:
                 if not lst: return ""
                 return ", ".join([str(x) for x in lst if x != -1])       
 
+            # --- ELA-UPGRADE: Hilfsfunktion für den Score-String ---
+            def hole_score_strings(ev_dict):
+                b1, b2 = ev_dict.get('p1_pd', 0), ev_dict.get('p2_pd', 0)
+                t1, t2 = b1 + ev_dict.get('p1_spd', 0.0), b2 + ev_dict.get('p2_spd', 0.0)
+                return f"{b1} Pkte ({t1:.3f})", f"{b2} T. ({t2:.3f})"
+            # -------------------------------------------------------
+
             # Header-Template (etwas schlanker für bessere Übersicht)
             mini_h = f"{'Zeit':>8} | {'Ref':>7} | {'Zyk':^4} | {'Aktion':<8} | {'Ziel':^4} | {'Zielwahl':^18} | {'P1-Treffer':^18} | {'P2-Treffer':^18}\n"
             sep = "-" * (len(mini_h) - 1)
@@ -447,13 +454,7 @@ class HighscoreDeluebs:
                                             if m == "FEUER":
                                                 if zyk > 1:
                                                     # Ab Zyklus 2 gibt es einen echten Zwischenstand vom vorherigen Zyklus
-                                                    b1 = ev.get('p1_pd', 0)
-                                                    t1 = b1 + ev.get('p1_spd', 0.0)
-                                                    b2 = ev.get('p2_pd', 0)
-                                                    t2 = b2 + ev.get('p2_spd', 0.0)
-                                                    s1_str = f"{b1} Pkte ({t1:.3f})"
-                                                    s2_str = f"{b2} Pkte ({t2:.3f})"
-                                                    
+                                                    s1_str, s2_str = hole_score_strings(ev)
                                                     bewerteter_zyklus = zyk - 1 
                                                     
                                                     event_details += f"{' ':>8} | {' ':>7} | {bewerteter_zyklus:^4} | {'SCORE':<8} | {' ':^4} | {'ZWISCHENSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
@@ -497,12 +498,7 @@ class HighscoreDeluebs:
                                     # --- NEU: ENDSTAND AUS DEM ALLERLETZTEN EVENT HOLEN ---
                                     if timeline:
                                         last_ev = timeline[-1]
-                                        b1 = last_ev.get('p1_pd', 0)
-                                        t1 = b1 + last_ev.get('p1_spd', 0.0)
-                                        b2 = last_ev.get('p2_pd', 0)
-                                        t2 = b2 + last_ev.get('p2_spd', 0.0)
-                                        s1_str = f"{b1} Pkte ({t1:.3f})"
-                                        s2_str = f"{b2} Pkte ({t2:.3f})"
+                                        s1_str, s2_str = hole_score_strings(last_ev)
                                         last_zyk = last_ev.get('z', 0)
                                         
                                         event_details += f"{sep}\n{' ':>8} | {' ':>7} | {last_zyk:^4} | {'SCORE':<8} | {' ':^4} | {'ENDSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
