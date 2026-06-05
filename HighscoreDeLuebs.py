@@ -384,7 +384,7 @@ class HighscoreDeluebs:
 
             # Header-Template (etwas schlanker für bessere Übersicht)
             mini_h = f"{'Zeit':>8} | {'Ref':>7} | {'Zyk':^4} | {'Aktion':<8} | {'Ziel':^4} | {'Zielwahl':^18} | {'P1-Treffer':^18} | {'P2-Treffer':^18}\n"
-            sep = "-" * len(mini_h)
+            sep = "-" * (len(mini_h) - 1)
             
             last_action_was_state = False # Merker, um Leerzeilen zu unterdrücken
             
@@ -417,26 +417,19 @@ class HighscoreDeluebs:
                         event_details = ""
                         
                         if match_id:
-                            #log_path = os.path.join("logs", f"MATCH{match_id:06d}.json")
                             log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
                             if os.path.exists(log_path):
                                 try:
                                     with open(log_path, "r", encoding="utf-8") as f:
                                         geladene_daten = json.load(f)
-                                        # --- NEU: Die Türsteher-Weiche ---
+                                        # --- Die Türsteher-Weiche ---
                                         if isinstance(geladene_daten, dict):
-                                            # Neues Format (ab Match 102): Aus der Schublade holen
                                             timeline = geladene_daten.get("timeline", [])
                                         else:
-                                            # Altes Format (Match 1 bis 101): Ist bereits die Liste
                                             timeline = geladene_daten
-                                        
-                                    event_details = "DETAILLIERTES EVENT-LOG: "+ f"MATCH{match_id:06d}"+"\n"
                                     
-                                    # Tabellen-Header erstellen (Modus auf 12 verbreitert für längere Namen)
-                                    #header = f"{'Zeit':>8} | {'Ref':>6} | {'Zykl':^4} | {'Modus':^8} | {'Ziel':^4} | {'Zielwahl':^20} | {'P1-Treffer':^20} | {'P2-Treffer':^20}"
-                                    #separator = "-" * len(header)
-                                    #event_details += f"{header}\n{separator}\n"
+                                    event_details = "DETAILLIERTES EVENT-LOG: "+ f"MATCH{match_id:06d}"+"\n"
+                                    # Der erste Header ganz oben
                                     event_details += "\n" + mini_h + sep +"\n"
                                     
                                     # Zeilen generieren
@@ -448,50 +441,72 @@ class HighscoreDeluebs:
                                         zyk = ev.get('z', 0)
                                     
                                         if action == "state_change":
-                                                # Zeilenumbruch nur vor neuen Blöcken (LADEN nach FEUER)
-                                                prefix = "" if not last_action_was_state and m == "LADEN" else ""
-                                                
-                                                # State-Wechsel Zeile: Zeitstempel beibehalten, dann die Phase klar benennen
-                                                # Wir nutzen die Spaltenbreite von 'Aktion' (8) für den Status-Namen
-                                                line = f"{prefix}{t} | {tref} | {zyk:^4} | {m[:8]:<8} | {' ':^4} | {'(Statuswechsel)':^18} | {' ':^18} | {' ':^18}\n"
-                                                event_details += line
-                                                
-                                                # Header-Wiederholung nur bei ACHTUNG für die Orientierung
-                                                if m == "ACHTUNG":
-                                                    event_details += "\n" + mini_h + sep  + "\n"
-                                                
-                                                last_action_was_state = True
-                                        
+                                            prefix = "" if not last_action_was_state and m == "LADEN" else ""
+                                            
+                                            # --- DIE EINZIG WAHRE ZWISCHENBILANZ (bei FEUER) ---
+                                            if m == "FEUER":
+                                                if zyk > 1:
+                                                    # Ab Zyklus 2 gibt es einen echten Zwischenstand vom vorherigen Zyklus
+                                                    b1 = ev.get('p1_pd', 0)
+                                                    t1 = b1 + ev.get('p1_spd', 0.0)
+                                                    b2 = ev.get('p2_pd', 0)
+                                                    t2 = b2 + ev.get('p2_spd', 0.0)
+                                                    s1_str = f"{b1} Pkte ({t1:.3f})"
+                                                    s2_str = f"{b2} Pkte ({t2:.3f})"
+                                                    
+                                                    bewerteter_zyklus = zyk - 1 
+                                                    
+                                                    event_details += f"{' ':>8} | {' ':>7} | {bewerteter_zyklus:^4} | {'SCORE':<8} | {' ':^4} | {'ZWISCHENSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
+                                                    event_details += "\n" + mini_h + sep + "\n" # Leerzeile NACH dem Score-Block
+                                                elif zyk == 1:
+                                                    # Beim allerersten FEUER (Start von Zyklus 1) nur den Header setzen, keinen Score!
+                                                    event_details += "\n" + mini_h + sep + "\n"
+                                            # ----------------------------------------------------
+
+                                            line = f"{prefix}{t} | {tref} | {zyk:^4} | {m[:8]:<8} | {' ':^4} | {'(Statuswechsel)':^18} | {' ':^18} | {' ':^18}\n"
+                                            event_details += line
+                                            
+                                            last_action_was_state = True
+                                    
                                         elif action == "shoot":
                                             v = ev.get('v', '-')
                                             w = clean_l(ev.get('w', []))
                                             p1 = clean_l(ev.get('p1_t', []))
                                             p2 = clean_l(ev.get('p2_t', []))
                                     
-                                            # Kompakte Datenzeile
                                             line = f"{t} | {tref} | {zyk:^4} | {'SHOT':<8} | {v:^4} | {w:^18} | {p1:^18} | {p2:^18}\n"
                                             event_details += line
                                             last_action_was_state = False
 
-                                        # --- NEU: Das VAR-Eingriff Layout ---
                                         elif action == "anulliere_zyklus":
                                             p_idx = ev.get('p', -1)
-                                            # Wir setzen den Text genau in die Spalte des betroffenen Spielers!
                                             p1_text = "[ ANNULLIERT ]" if p_idx == 0 else ""
                                             p2_text = "[ ANNULLIERT ]" if p_idx == 1 else ""
                                             
-                                            # Formatierung passend zum mini_h Header
                                             line = f"{t} | {tref} | {zyk:^4} | {'VAR':<8} | {' ':^4} | {'Manuelle Korrektur':^18} | {p1_text:^18} | {p2_text:^18}\n"
                                             event_details += line
                                             last_action_was_state = False
                                             
                                         else:
-                                            # --- NEU: Catch-All für unbekannte Events ---
-                                            # Schneidet den Aktionsnamen auf max. 8 Zeichen ab, damit das Layout heile bleibt
+                                            # Catch-All für unbekannte Events
                                             aktions_name = str(action)[:18] if action else "UNKNOWN"
                                             line = f"{t} | {tref} | {zyk:^4} | {' ':<8} | {' ':^4} | {aktions_name:^18} | {' ':^18} | {' ':^18}\n"
                                             event_details += line
-                                            last_action_was_state = False                                            
+                                            last_action_was_state = False 
+
+                                    # --- NEU: ENDSTAND AUS DEM ALLERLETZTEN EVENT HOLEN ---
+                                    if timeline:
+                                        last_ev = timeline[-1]
+                                        b1 = last_ev.get('p1_pd', 0)
+                                        t1 = b1 + last_ev.get('p1_spd', 0.0)
+                                        b2 = last_ev.get('p2_pd', 0)
+                                        t2 = b2 + last_ev.get('p2_spd', 0.0)
+                                        s1_str = f"{b1} Pkte ({t1:.3f})"
+                                        s2_str = f"{b2} Pkte ({t2:.3f})"
+                                        last_zyk = last_ev.get('z', 0)
+                                        
+                                        event_details += f"{sep}\n{' ':>8} | {' ':>7} | {last_zyk:^4} | {'SCORE':<8} | {' ':^4} | {'ENDSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
+                                    # ------------------------------------------------------
                                         
                                 except Exception as e:
                                     event_details = f"\n[Fehler beim Laden des Event-Logs: {e}]"
