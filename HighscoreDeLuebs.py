@@ -386,7 +386,7 @@ class HighscoreDeluebs:
             def hole_score_strings(ev_dict):
                 b1, b2 = ev_dict.get('p1_pd', 0), ev_dict.get('p2_pd', 0)
                 t1, t2 = b1 + ev_dict.get('p1_spd', 0.0), b2 + ev_dict.get('p2_spd', 0.0)
-                return f"{b1} Pkte ({t1:.3f})", f"{b2} T. ({t2:.3f})"
+                return f"{b1} Pkte ({t1:.3f})", f"{b2} Pkte ({t2:.3f})"
             # -------------------------------------------------------
 
             # Header-Template (etwas schlanker für bessere Übersicht)
