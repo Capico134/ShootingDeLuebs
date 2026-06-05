@@ -110,7 +110,8 @@ class ShootingDeluebs:
         
         #Widgets
         self.create_widgets()
-        self.root.bind('<Key>', self.key_handler)
+        self.root.bind_all('<Key>', self.key_handler)
+        #self.root.bind_all('<Tab>', self.key_handler) # <--- NEU: Tab explizit fangen!
  
     def create_widgets(self):
         #Background mit Hintergrundfarbe
@@ -393,6 +394,11 @@ class ShootingDeluebs:
         Prüft bei jedem Klick: Wenn nicht in ein Textfeld geklickt wurde, 
         nimm den Fokus aus dem Textfeld weg und gib ihn dem Hintergrund.
         """
+        # SCHUTZSCHILD: Prüfen, ob event.widget überhaupt eine winfo_class Methode hat.
+        # Wenn nicht (z.B. weil Tkinter uns einen rohen String liefert), brechen wir ab.
+        if not hasattr(event.widget, 'winfo_class'):
+            return
+
         # Wenn das angeklickte Element KEIN Texteingabefeld ist...
         if event.widget.winfo_class() not in ('Entry', 'TEntry', 'Text'):
             # ... dann gib dem angeklickten Element (z.B. dem grauen Hintergrund) den Fokus!
@@ -422,15 +428,16 @@ class ShootingDeluebs:
             print("Start")
             self.SMobjekt.buttonCountdownClick() #Standabfrage ist hier, da Knopf verschwindet und der Button aktiv bleibt
         if event.keysym=='Escape': self.SMobjekt.buttonResetClick() #and not self.SMobjekt.stand==-1 #standabfrage ist in der Funktion
-        if event.keysym=='Tab': 
+        if event.keysym in ('t', 'T'):
             if not self.SMobjekt.has_tag(SMDeLuebs.Tag.MODIFIZIERT):
                 self.SMobjekt.system_update_laeuft=True
                 self.SMobjekt.ladenGelb.set(60)   
                 #self.SMobjekt.remove_tag(SMDeLuebs.Tag.MODIFIZIERT)
                 self.SMobjekt.system_update_laeuft=False
                 self.SMobjekt.add_tag(SMDeLuebs.Tag.ONEMIN)
-            else: self.SMobjekt.ladenGelb.set(60)                  
-        if event.keysym == 'D':
+            else: self.SMobjekt.ladenGelb.set(60)              
+            return 'break'            
+        if event.keysym in ('d', 'D'):
             print("DEV MODE: Fast-Forward aktiviert!")
             self.SMobjekt.system_update_laeuft=True
             self.SMobjekt.vorbereiten.set(1)
@@ -441,7 +448,7 @@ class ShootingDeluebs:
             #self.SMobjekt.remove_tag(SMDeLuebs.Tag.ONEMIN)
             self.SMobjekt.system_update_laeuft=False
             self.SMobjekt.add_tag(SMDeLuebs.Tag.DEVELOPER)         
-        if event.keysym == 'S':
+        if event.keysym in ('s', 'S'):
             if not getattr(self.SMobjekt, 'champion_loop_laeuft', False):
                 print("Lade Meisterschaft Spieler (Loop gestartet)!")
                 self.SMobjekt.setChampionMatch()
