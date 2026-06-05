@@ -8,6 +8,7 @@ import zipfile
 import io #für zipfile
 import os #für Eventlog
 from PIL import Image, ImageTk  # Pillow muss installiert sein: `pip install pillow`
+from StateManagerDeLuebs import GameState
 
 class HighscoreDeluebs:
     def __init__(self, SDeluebs):
@@ -439,6 +440,10 @@ class HighscoreDeluebs:
                                     # Der erste Header ganz oben
                                     event_details += "\n" + mini_h + sep +"\n"
                                     
+                                    # --- NEU: Die Türsteher-Liste direkt aus dem Enum generieren ---
+                                    # Erzeugt ['FEUER', 'PLAYER1', 'PLAYER2', 'END', 'WINNER']
+                                    valid_action_states = [state.name for state in GameState.action_states()]
+                                    
                                     # Zeilen generieren
                                     for ev in timeline:
                                         action = ev.get('a', '')
@@ -472,10 +477,19 @@ class HighscoreDeluebs:
                                         elif action == "shoot":
                                             v = ev.get('v', '-')
                                             w = clean_l(ev.get('w', []))
-                                            p1 = clean_l(ev.get('p1_t', []))
-                                            p2 = clean_l(ev.get('p2_t', []))
+                                            
+                                            # Die saubere Lösung: Zeige Treffer nur in echten Action-States!
+                                            p1 = clean_l(ev.get('p1_t', [])) if m in valid_action_states else ""
+                                            p2 = clean_l(ev.get('p2_t', [])) if m in valid_action_states else ""
                                     
                                             line = f"{t} | {tref} | {zyk:^4} | {'SHOT':<8} | {v:^4} | {w:^18} | {p1:^18} | {p2:^18}\n"
+                                            event_details += line
+                                            last_action_was_state = False
+
+                                        elif "Bonus" in action:
+                                            # Macht das dynamische Umfärben der Matrix sichtbar!
+                                            w = clean_l(ev.get('w', []))
+                                            line = f"{t} | {tref} | {zyk:^4} | {'BONUS':<8} | {' ':^4} | {action[:18]:^18} | {w:^18} | {' ':^18}\n"
                                             event_details += line
                                             last_action_was_state = False
 
