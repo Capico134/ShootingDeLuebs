@@ -507,7 +507,15 @@ class HighscoreDeluebs:
                                             line = f"{t} | {tref} | {zyk:^4} | {'VAR':<8} | {' ':^4} | {'Manuelle Korrektur':^18} | {p1_text:^18} | {p2_text:^18}\n"
                                             event_details += line
                                             last_action_was_state = False
-                                            
+                                        
+                                        elif action.startswith("Rec:"):
+                                            # VIP-Behandlung für Replay-Syncs (dezent, gegen den Kassenzettel-Look!)
+                                            w = clean_l(ev.get('w', []))
+                                            # Wir nutzen ein leises "↳ sync" und lassen die Treffer-Spalten GANZ LEER!
+                                            line = f"{t} | {tref} | {zyk:^4} | {' ↳ sync':<8} | {' ':^4} | {w:^18} | {' ':^18} | {' ':^18}\n"
+                                            event_details += line
+                                            last_action_was_state = False
+
                                         else:
                                             # Catch-All für unbekannte Events
                                             aktions_name = str(action)[:18] if action else "UNKNOWN"
