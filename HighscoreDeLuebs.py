@@ -489,7 +489,13 @@ class HighscoreDeluebs:
                                         elif "Bonus" in action:
                                             # Macht das dynamische Umfärben der Matrix sichtbar!
                                             w = clean_l(ev.get('w', []))
-                                            line = f"{t} | {tref} | {zyk:^4} | {'BONUS':<8} | {' ':^4} | {action[:18]:^18} | {w:^18} | {' ':^18}\n"
+                                            
+                                            # Wir schreiben die Info genau in die Spalte des Spielers, der profitiert!
+                                            p1_text = "[ BONUS ERHALTEN ]" if "1" in action else ""
+                                            p2_text = "[ BONUS ERHALTEN ]" if "2" in action else ""
+                                            
+                                            # w rutscht jetzt korrekt an die 6. Stelle (Zielwahl)
+                                            line = f"{t} | {tref} | {zyk:^4} | {'BONUS':<8} | {' ':^4} | {w:^18} | {p1_text:^18} | {p2_text:^18}\n"
                                             event_details += line
                                             last_action_was_state = False
 
