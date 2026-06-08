@@ -822,18 +822,18 @@ class PyGameTaster(threading.Thread):
                         joy = pygame.joystick.Joystick(event.device_index)
                         joysticks.append(joy)
                         if joystick_found:
-                            self.KSobjekt.SDeluebs.programm_name.set("Klappscheibe wurde erneut verbunden. Wackelkontakt?")
+                            self.KSobjekt.SM.set_basis_programm_name("Klappscheibe wurde erneut verbunden.")
                             timestamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             self.KSobjekt.event_log.append(f"[{timestamp}] [WARNUNG] Joystick wurde erneut verbunden – mögliche USB-Störung")
                         else: joystick_found = True
                     if event.type == pygame.JOYDEVICEREMOVED:
                         print("Tastereingabe für Klappscheibe wurde entfernt.")
-                        self.KSobjekt.SDeluebs.programm_name.set("Klappscheibe wurde entfernt.")
+                        self.KSobjekt.SM.set_basis_programm_name("Klappscheibe wurde entfernt.")
                         timestamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         self.KSobjekt.event_log.append(f"[{timestamp}] [WARNUNG] Joystick wurde entfernt")
                         joysticks.clear()    
             except pygame.error as e:
-                self.KSobjekt.SDeluebs.programm_name.set(f"Joystick konnte nicht initialisiert werden:\n{e}")    
+                self.KSobjekt.SM.set_basis_programm_name(f"Joystick konnte nicht initialisiert werden:\n{e}")    
                 timestamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 self.KSobjekt.event_log.append(f"[{timestamp}] [ERROR] Joystick konnte nicht initialisiert werden: {e}")
             #if event.type == pygame.QUIT:

@@ -16,915 +16,740 @@ class HighscoreDeluebs:
         self.highscore_manager = HighscoreManager()
         self.load_scores()
         self.anzahl_eintraege = tk.IntVar(value=0)
+        
+        # --- ELA-Tipp 3: Zentrale Spaltendefinition (Single Source of Truth) ---
+        self.columns = ("Match-ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel")
     
     def customize_style(self):
-        # Style für das Treeview erstellen
         style = ttk.Style()
-        style.configure("Treeview", font=("Arial", 23), rowheight=40)  # Schriftart und Schriftgröße für den Treeview
-        style.configure("Treeview.Heading", font=("Arial", 30, "bold"))  # Überschriftenstil
-        
-        style.configure("TButton", font=("Arial", 22) ) # Schriftart und Schriftgröße für Buttons
-        style.configure("TCombobox", padding=(10,5,60,5))
-        style.configure("Treeview", background='lavenderblush') # 'dodgerblue') 
+        style.configure("Treeview", font=("Arial", 23), rowheight=40)
+        style.configure("Treeview.Heading", font=("Arial", 30, "bold"))
+        style.configure("TButton", font=("Arial", 22))
+        style.configure("TCombobox", padding=(10, 5, 60, 5))
+        style.configure("Treeview", background='lavenderblush')
 
-        # Funktion zum Aktualisieren der Highscore-Anzeige
     def show_highscore_window(self):
-        #self.load_scores()
         self.highscore_window = tk.Toplevel(self.SDeluebs.root)
         self.highscore_window.title("Highscores")
-        self.highscore_window.geometry('1800x900')#+50+50')
+        self.highscore_window.geometry('1800x900')
         self.highscore_window['background'] = 'plum'
-        self.highscore_window.option_add("*TCombobox*Listbox.font", ("Arial",25))#Schriftgröße im Auswahlmenü
+        self.highscore_window.option_add("*TCombobox*Listbox.font", ("Arial", 25))
         self.customize_style()
-        #self.highscore_window.wm_attributes("-topmost", True)
 
-
-
-        top_frame = tk.Frame(self.highscore_window, bg='plum')#highlightthickness=0, bd=0)
+        top_frame = tk.Frame(self.highscore_window, bg='plum')
         top_frame.pack(fill="x", padx=10, pady=10)
     
-        #Logo
+        # Logo aus ZIP laden
         with zipfile.ZipFile("data.pak", "r") as pak:  
             image = Image.open(io.BytesIO(pak.read("Highscore_v01.png")))  
-        #image = image.resize((200, 200), Image.ANTIALIAS)  # Passe die Größe an
         photo = ImageTk.PhotoImage(image)
         label = tk.Label(top_frame, image=photo, highlightthickness=0, borderwidth=0)
         label.pack(side="left", padx=15)
-        # Damit das Bild sichtbar bleibt, musst man die Referenz speichern
         label.image = photo  
         
-        # Highscore-Modi abrufen
-        #modes = set(entry["programm_name"] for entry in self.highscore_manager.data)
         modes = sorted(set(entry["programm_name"] for entry in self.highscore_manager.data))
     
-        # Dropdown-Menü (ComboBox) erstellen
-        selected_mode = tk.StringVar(value="Alle Modi")
-        self.mode_dropdown = ttk.Combobox(top_frame, textvariable=selected_mode, values=["Alle Modi"] + list(modes), width=30, state="readonly")
-        self.mode_dropdown.pack(side="left", padx=(150,0))
-        self.mode_dropdown.configure(font=('Arial',30))
+        # Dropdown
+        self.selected_mode = tk.StringVar(value="Alle Modi")
+        self.mode_dropdown = ttk.Combobox(top_frame, textvariable=self.selected_mode, values=["Alle Modi"] + list(modes), width=30, state="readonly")
+        self.mode_dropdown.pack(side="left", padx=(150, 0))
+        self.mode_dropdown.configure(font=('Arial', 30))
         self.mode_dropdown.bind("<Button-1>", lambda event: self.mode_dropdown.focus_set())
     
-        #Schließen Knopf
-        close_button = tk.Button(top_frame, text="Schließen", command=self.highscore_window.destroy, font=('Arial',25))
-        close_button.pack(pady=10, side="right", padx=(0,35))
+        # Schließen Button
+        close_button = tk.Button(top_frame, text="Schließen", command=self.highscore_window.destroy, font=('Arial', 25))
+        close_button.pack(pady=10, side="right", padx=(0, 35))
     
-        #Label Text-Anzahl-Einträge
+        # Anzahl-Anzeige
         block = tk.Frame(top_frame)
-        block.pack(side="right", padx=(5,65))
-        label_text_eintraege =  tk.Label(block, text=" Anzahl Einträge ", font=('Arial',17), bg="thistle")
-        label_text_eintraege.pack(side=tk.TOP, padx=(0,0))
-        label_anzahl_eintraege =  tk.Label(block, textvariable=self.anzahl_eintraege, font=('Arial',17))
-        label_anzahl_eintraege.pack(side=tk.BOTTOM, padx=(5,5))
+        block.pack(side="right", padx=(5, 65))
+        label_text_eintraege = tk.Label(block, text=" Anzahl Einträge ", font=('Arial', 17), bg="thistle")
+        label_text_eintraege.pack(side=tk.TOP)
+        label_anzahl_eintraege = tk.Label(block, textvariable=self.anzahl_eintraege, font=('Arial', 17))
+        label_anzahl_eintraege.pack(side=tk.BOTTOM, padx=(5, 5))
     
-        # Frame für Treeview und Scrollbar erstellen
-        frame = tk.Frame(self.highscore_window, bg='plum') #highlightthickness=0, bd=0)
+        # Frame für Tabelle
+        frame = tk.Frame(self.highscore_window, bg='plum')
         frame.pack(pady=10, fill="both", expand=True)
         
-#        # Canvas als Hintergrund, mit place statt pack
-#        self.MyCanvas = tk.Canvas(frame, width=1800, height=900, highlightthickness=0)
-#        self.mein_bg = tk.PhotoImage(file='Hintergrundv04.png') 
-#        self.MyCanvas.create_image(0, 0, anchor="nw", image=self.mein_bg)
-#        self.MyCanvas.place(x=0, y=0, relwidth=1, relheight=1)  # Setzt es als Hintergrund
-        
-        # Scrollbar erstellen
         scrollbar = tk.Scrollbar(frame, width=47)
         scrollbar.pack(side="right", fill="y")
         
-        # Treeview erstellen und an die Scrollbar binden
-        tree = ttk.Treeview(
-            frame,  # Direkt im Frame, nicht im Canvas
-            # NEU: "Match-ID" als allererste Spalte hinzugefügt
-            columns=("Match-ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel"),
+        # --- ELA-Tipp 1: Tree wird offizielles Klassenattribut! ---
+        self.tree = ttk.Treeview(
+            frame,
+            columns=self.columns,
             show="headings",
             yscrollcommand=scrollbar.set,
             selectmode="extended",
         )
-        tree.heading("Match-ID", text="ID")
-        tree.heading("Spieler", text="Spieler")
-        tree.heading("Modus", text="Modus")
-        tree.heading("Punkte Durchgang", text="Punkte")
-        tree.heading("Gesamtpunkte", text="Gesamtpunkte")
-        tree.heading("Zeitstempel", text="Zeitstempel")
-        tree.pack(side="left", fill="both", expand=True)
         
-        scrollbar.config(command=tree.yview)
+        # Spalten-Headings und Sortierung dynamisch setzen
+        for col in self.columns:
+            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_column(_col, True))
         
-        tree.column("Match-ID", width=60, anchor="center", stretch=False)
-        tree.column("Spieler", width= 260)#, stretch=True)
-        tree.column("Modus", width= 400, stretch=True)
-        tree.column("Punkte Durchgang", width= 30, stretch=True)
-
-        # Funktion zum Sortieren basierend auf einer Spalte
-        def sort_column(tree, col, reverse):
-            def convert_value(value):
-                try:
-                    if col == "Zeitstempel":
-                        return dt.datetime.strptime(value, "%d.%m.%y %H:%M:%S")
-                    
-                    # --- NEU: Den Strich abfangen, damit Python beim Sortieren nicht crasht ---
-                    if value == "-":
-                        return -1  # Alte Matches rutschen damit immer ans Ende/den Anfang
-                        
-                    return float(value) if "." in value else int(value) 
-                except ValueError:
-                    return value
-            
-            # Daten abrufen und konvertieren
-            data = [(convert_value(tree.set(k, col)), k) for k in tree.get_children('')]
-            data.sort(reverse=reverse, key=lambda t: t[0])
-            
-            # Einträge bewegen
-            for index, (val, k) in enumerate(data):
-                tree.move(k, '', index)
-            
-            # Spaltenüberschrift mit Sortierung aktualisieren
-            tree.heading(col, command=lambda: sort_column(tree, col, not reverse))
-
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.tree.yview)
         
-        # Event-Bindung für jede Spalte in Treeview
-        for col in ("Match-ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel"):
-            tree.heading(col, command=lambda _col=col: sort_column(tree, _col, True)) #War vorher auf False
+        self.tree.column("Match-ID", width=60, anchor="center", stretch=False)
+        self.tree.column("Spieler", width=260)
+        self.tree.column("Modus", width=400, stretch=True)
+        self.tree.column("Punkte Durchgang", width=30, stretch=True)
 
-
-        # Frame für Filter-Eingaben
+        # --- AB HIER DIE FILTER-GUI BAUEN ---
         filter_frame = tk.Frame(self.highscore_window, bg='plum')
         filter_frame.pack(fill="x")
         
-        filters = {}
-        # NEU: "match_id" ganz vorne in das Tupel eingefügt!
-        for col in ("match_id", "spieler", "programm_name", "punkte_durchgang", "gesamtpunkte", "timestamp"):
-            # Das erste Feld (ID) schmaler machen, die anderen bleiben auf 16
+        # Filter-Eingabefelder generieren
+        self.filters = {}
+        filter_keys = ("match_id", "spieler", "programm_name", "punkte_durchgang", "gesamtpunkte", "timestamp")
+        for col in filter_keys:
             feld_breite = 3 if col == "match_id" else 16 
-            
-            entry = tk.Entry(filter_frame, font=('Arial',25), width=feld_breite)
+            entry = tk.Entry(filter_frame, font=('Arial', 25), width=feld_breite)
             entry.pack(side="left", padx=5)
-            filters[col] = entry
-            entry.bind("<Return>", lambda event: apply_filters()) #Bindet die Enter-Taste
+            self.filters[col] = entry
+            entry.bind("<Return>", lambda event: self.apply_filters())
 
-        def apply_filters():
-            # Treeview zuerst mit allen Daten aktualisieren
-            update_treeview(tree, self.highscore_manager.data)
-            update_highscores()
-        
-            # Gefilterte Einträge sammeln
-            filtered_items = []
-            for row_id in tree.get_children():
-                values = tree.item(row_id, "values")  # Hier sind die Zeilenwerte (Tuple)
-                match = True
-        
-                for col, entry in filters.items():  # Verwende Filter-Spaltennamen aus `filters`
-                    val = entry.get()
-                    if val:
-                        try:
-                            # Hier wird kein Index gesucht, sondern direkt der Wert aus `values`
-                            cell_value = values[list(filters.keys()).index(col)]  # Spaltennamen aus `filters` nutzen
-        
-                            # Zahlenwerte filtern
-                            if col in ["punkte_durchgang", "gesamtpunkte"]:
-                                #print('hier')
-                                cell_value = float(cell_value)
-                                if ">=" in val:
-                                    threshold = float(val.split(">=")[1].strip())  # Float statt int
-                                    if cell_value < threshold:
-                                        match = False
-                                elif "<=" in val:
-                                    threshold = float(val.split("<=")[1].strip())
-                                    if cell_value > threshold:
-                                        match = False
-                                elif ">" in val:
-                                    threshold = float(val.split(">")[1].strip())
-                                    if cell_value <= threshold:
-                                        match = False
-                                elif "<" in val:
-                                    threshold = float(val.split("<")[1].strip())
-                                    if cell_value >= threshold:
-                                        match = False
-                                elif val.replace(".", "", 1).isdigit():  # Prüft, ob val eine gültige Dezimalzahl ist
-                                    if cell_value != float(val.strip()):  # Float statt int
-                                        match = False
-                                else:
-                                    print(f"Ungültige Eingabe: {val}")  # Fehlerabfangung
-        
-                            # Timestamp filtern (Datum muss innerhalb des Bereichs sein)
-                            elif col == "timestamp":
-                                if "-" in val:  # Bereichsfilterung
-                                    try:
-                                        start, end = map(str.strip, val.split("-"))
-                                        format_filter = "%d.%m.%y"# %H:%M:%S"
-                                        format_tree = "%d.%m.%y %H:%M:%S"
-                                        start_date = dt.datetime.strptime(start, format_filter)
-                                        end_date = dt.datetime.strptime(end, format_filter) + dt.timedelta(days=1)
-                                        cell_date = dt.datetime.strptime(cell_value, format_tree)
-                                        
-                                        if not (start_date <= cell_date <= end_date):
-                                            match = False
-                                    except ValueError:
-                                        print(f"Ungültiges Zeitformat: {val}. Bitte im Format 'TT.MM.JJ - TT.MM.JJ' eingeben.")
-        
-                            # Wildcard-Suche (NEU: "match_id" hier ergänzt!)
-                            elif col in ["match_id", "spieler", "programm_name"]:
-                                pattern = re.compile(val, re.IGNORECASE)  # Regex-Muster mit Wildcard
-                                # WICHTIG: str(cell_value) nutzen, falls die ID als Zahl (int) vorliegt!
-                                if not pattern.search(str(cell_value)):
-                                    match = False
-        
-                        except (ValueError, IndexError):
-                            print(f"Ungültige Eingabe für {col}: {val}")
-                            match = False
-        
-                if match:
-                    filtered_items.append(row_id)
-        
-            # Alle Treeview-Einträge löschen, die den Kriterien nicht entsprechen
-            for row_id in tree.get_children():
-                if row_id not in filtered_items:
-                    tree.delete(row_id)
-            
-            #sort_column(tree, "Gesamtpunkte", True) # AL AL AL Jetzt wird richtig sortiert        
-            sort_column(tree, "Zeitstempel", True) # AL AL AL Jetzt wird richtig sortiert        
+        filter_button = tk.Button(filter_frame, text="Filter anwenden", command=self.apply_filters, font=('Arial', 20))
+        filter_button.pack(side="right", padx=(0, 5))
 
-        # Filter auf einen Button binden
-        filter_button = tk.Button(filter_frame, text="Filter anwenden", command=apply_filters, font=('Arial',20))
-        filter_button.pack(side="right", padx=(0,5))
-
- 
-        # Funktion zum Aktualisieren der Highscore-Anzeige
-        def update_highscores():
-            selected = selected_mode.get()
-            filtered_data = self.highscore_manager.filter_highscores(
-                mode_name=None if selected == "Alle Modi" else selected, sort_by="gesamtpunkte"
-            ) # Hier wird es nur nach den Gesamtpunkten von Player 1 sortiert.
-            update_treeview(tree, filtered_data)        
-            #sort_column(tree, "Gesamtpunkte", True) # AL AL AL Jetzt wird richtig sortiert
-            sort_column(tree, "Zeitstempel", True) # AL AL AL Jetzt wird richtig sortiert        
-
-        def update_treeview(tree, data):
-            #print(f"Anzahl der Einträge: {len(data)}")
-            self.anzahl_eintraege.set(len(data))
-            # Treeview leeren
-            for row in tree.get_children():
-                tree.delete(row)
-            
-            # Tags definieren mit Farben
-            tree.tag_configure("even", background="thistle")
-            tree.tag_configure("odd", background="lavenderblush")
-            tag="even"
-            
-            # Einträge hinzufügen
-            for hs in data:
-                #timestamp=hs.get("timestamp", "Unbekannt")
-                #print(f"Time: {timestamp} tag: {tag}")
-                if tag =="even": tag = "odd"
-                else: tag = "even"
-                
-                spieler_name = hs.get("spieler", "Unbekannt")
-                punkte_durchgang = hs.get("punkte_durchgang", 0)
-                gesamtpunkte = hs.get("gesamtpunkte", 0)
-                match_id = hs.get("match_id", "-")
-                if hs.get("survival_modus", 0) == 1 and hs.get("gegner_modus", 0) == 1: # and "spieler2" in hs:
-                    spieler_name += f"; {hs['spieler2']}"  # Kombinierte Spielernamen im Gegner-Modus
-                    spieler_name += f"; {hs.get('zyklus','N/A')} Rnd" 
-                    punkte_durchgang = hs.get("punkte_durchgang", 0)+hs.get("punkte_durchgang_pl2", 0)
-                    gesamtpunkte = round(hs.get("gesamtpunkte", 0)+hs.get("gesamtpunkte_pl2", 0),3)     
-                    # --- NEU: Match-ID auslesen (mit Fallback "-", falls alte Matches keine haben) ---
-                
-                
-                tree.insert(
-                    "",
-                    "end",
-                    values=(
-                        match_id,            # <--- HIER ALS ERSTES EINFÜGEN!
-                        spieler_name,
-                        hs.get("programm_name", "Unbekannt"),
-                        punkte_durchgang,
-                        gesamtpunkte,
-                        hs.get("timestamp", "Unbekannt")
-                    ),
-                    tags=(tag,)
-                )
-                
-                if hs.get("survival_modus", 0) == 0 and hs.get("gegner_modus", 0) == 1: #and "spieler2" in hs:
-                    tree.insert(
-                        "",
-                        "end",
-                        values=(
-                            match_id,            # <--- HIER ALS ERSTES EINFÜGEN!
-                            hs.get("spieler2", "Unbekannt"),
-                            hs.get("programm_name", "Unbekannt"),
-                            hs.get("punkte_durchgang_pl2", 0),
-                            hs.get("gesamtpunkte_pl2", 0),     
-                            hs.get("timestamp", "Unbekannt")
-                        ),
-                        tags=(tag,)
-                    )
-
-    
-        # Kontextmenü erstellen
-        def show_context_menu(event):
-            context_menu = tk.Menu(self.highscore_window, tearoff=0)
-            context_menu.add_command(label="Informationen", command=show_selected_entries,font=('Arial',35))            
-            context_menu.add_command(label="Highscore Log", command=show_selected_highscore_logs,font=('Arial',35))
-            context_menu.add_command(label="Export Replay", command=export_match_to_yaml,font=('Arial',35))
-            context_menu.add_command(label="Replay abspielen", command=play_replay, font=('Arial',35))
-            context_menu.add_command(label="Löschen", command=delete_selected_entries,font=('Arial',35))
-            context_menu.post(event.x_root, event.y_root)
-            #def close_menu(event):
-            #    context_menu.unpost()
-            #tree.bind("<Button-1>", close_menu)
-    
-        # Funktion zum Löschen von ausgewählten Einträgen
-        def delete_selected_entries():
-            selected_items = tree.selection()
-            for item in selected_items:
-                values = tree.item(item, "values")
-                for entry in self.highscore_manager.data:
-                    if entry["timestamp"] == values[5]:
-                    #if entry["spieler"] == values[0] and entry["programm_name"] == values[1] and str(entry["gesamtpunkte"]) == values[3]:
-                        entry_data =  "Programm: "+entry.get("programm_name","unbekannt")+"\n"+str(entry.get("timestamp","unbekannt"))+"\n\n" \
-                                      "Spieler: " +entry.get("spieler","unbekannt")+"\nPunkte: "+str(entry.get("punkte_durchgang","0"))+"\nGesamtpunkte: "+str(entry.get("gesamtpunkte","0"))+"\n" 
-                        if entry["gegner_modus"] == 1:
-                            entry_data = entry_data + "\n" \
-                                      "Spieler 2: "+entry.get("spieler2","unbekannt")+"\nPunkte: "+str(entry.get("punkte_durchgang_pl2","0"))+"\nGesamtpunkte: "+str(entry.get("gesamtpunkte_pl2","0"))+"\n"  
-                        self.highscore_window.withdraw()
-                        antwort = messagebox.askyesno("Bestätigung", "Eintrag wirklich löschen?\n\n"+entry_data)
-                        self.highscore_window.deiconify()
-                        self.highscore_window.lift()
-                        if not antwort: break
-                        self.highscore_manager.data.remove(entry)
-                        #tree.delete(item)
-                        break
-            update_treeview(tree, self.highscore_manager.data) #Datenbank neu Aufbauen
-            apply_filters() #AL AL AL Filter anwenden
-            #sort_column(tree, "Gesamtpunkte", True) # AL AL AL Jetzt wird sortiert, dass Gesamtpunkte oben sind.
-            sort_column(tree, "Zeitstempel", True) # AL AL AL Jetzt wird richtig sortiert        
-            
-            # Datenbank speichern #Dies sollte besser von einer Funktion in der Klasse Highscore durchgeführt werden
-            with open(self.highscore_manager.file_path, "w") as file:
-                json.dump(self.highscore_manager.data, file, indent=4)
-
-        #Funktion um alle Inhalte anzuzeigen
-        def show_selected_entries(): 
-            exclude_keys = {"highscore_log"} #, "saveScore", "default_feuerzeit"}  # Erweiterbar bei Bedarf
-            selected_items = tree.selection() 
-            for item in selected_items: 
-                values = tree.item(item, "values") 
-                for entry in self.highscore_manager.data:
-                    if entry["timestamp"] == values[5]:
-                        text = "\n".join(
-                            [f"{key}: {value}" for key, value in entry.items() if key not in exclude_keys]
-                        )
-                        messagebox.showinfo("Highscore-Details", text)
- 
-
-
-        def show_selected_highscore_logs():
-            # Hilfsfunktion für saubere Listen-Anzeige (Entfernt -1 und Klammern)
-            def clean_l(lst):
-                if not lst: return ""
-                return ", ".join([str(x) for x in lst if x != -1])       
-
-            # --- ELA-UPGRADE: Hilfsfunktion für den Score-String ---
-            def hole_score_strings(ev_dict):
-                b1, b2 = ev_dict.get('p1_pd', 0), ev_dict.get('p2_pd', 0)
-                t1, t2 = b1 + ev_dict.get('p1_spd', 0.0), b2 + ev_dict.get('p2_spd', 0.0)
-                return f"{b1} Pkte ({t1:.3f})", f"{b2} Pkte ({t2:.3f})"
-            # -------------------------------------------------------
-
-            # Header-Template (etwas schlanker für bessere Übersicht)
-            mini_h = f"{'Zeit':>8} | {'Ref':>7} | {'Zyk':^4} | {'Aktion':<8} | {'Ziel':^4} | {'Zielwahl':^18} | {'P1-Treffer':^18} | {'P2-Treffer':^18}\n"
-            sep = "-" * (len(mini_h) - 1)
-            
-            last_action_was_state = False # Merker, um Leerzeilen zu unterdrücken
-            
-            selected_items = tree.selection()
-            for item in selected_items:
-                values = tree.item(item, "values")
-                # Wir suchen den passenden Eintrag in unseren Master-Daten
-                for entry in self.highscore_manager.data:
-                    if entry["timestamp"] == values[5]:
-                        log_window = tk.Toplevel()
-                        log_window.title(f"Detail-Log: {entry.get('programm_name', 'Unbekannt')}")
-                        
-                        # 1. Basis-Infos vorbereiten
-                        info_lines = [
-                            f"PROGRAMM: {entry.get('programm_name', '')}",
-                            f"SPIELER 1: {entry.get('spieler', '')} | Punkte: {entry.get('punkte_durchgang', 0)}",
-                        ]
-                        
-                        if entry.get("gegner_modus", 0) != 0:
-                            info_lines.append(f"SPIELER 2: {entry.get('spieler2', 'N/A')} | Punkte: {entry.get('punkte_durchgang_pl2', 0)}")
-                        
-                        info_lines.append(f"ZEITSTEMPEL: {entry.get('timestamp', '')}")
-                        info_lines.append("-" * 75)
-                        info_lines.append("KLASSISCHES LOG:")
-                        info_lines.append(entry.get('highscore_log', '– Kein Log vorhanden –'))
-                        info_lines.append("-" * 75)
-                        
-                        # 2. EVENT-LOG (aus separater Datei) nachladen
-                        match_id = entry.get("match_id")
-                        event_details = ""
-                        
-                        if match_id:
-                            log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
-                            if os.path.exists(log_path):
-                                try:
-                                    with open(log_path, "r", encoding="utf-8") as f:
-                                        geladene_daten = json.load(f)
-                                        # --- Die Türsteher-Weiche ---
-                                        if isinstance(geladene_daten, dict):
-                                            timeline = geladene_daten.get("timeline", [])
-                                        else:
-                                            timeline = geladene_daten
-                                    
-                                    event_details = "DETAILLIERTES EVENT-LOG: "+ f"MATCH{match_id:06d}"+"\n"
-                                    # Der erste Header ganz oben
-                                    event_details += "\n" + mini_h + sep +"\n"
-                                    
-                                    # --- NEU: Die Türsteher-Liste direkt aus dem Enum generieren ---
-                                    # Erzeugt ['FEUER', 'PLAYER1', 'PLAYER2', 'END', 'WINNER']
-                                    valid_action_states = [state.name for state in GameState.action_states()]
-                                    
-                                    # Zeilen generieren
-                                    for ev in timeline:
-                                        action = ev.get('a', '')
-                                        m = ev.get('m', '')
-                                        t = f"{ev.get('t', 0):>7.2f}s"
-                                        tref = f"{ev.get('tref', 0):>6.2f}s"
-                                        zyk = ev.get('z', 0)
-                                    
-                                        if action == "state_change":
-                                            prefix = "" if not last_action_was_state and m == "LADEN" else ""
-                                            
-                                            # --- DIE EINZIG WAHRE ZWISCHENBILANZ (bei FEUER) ---
-                                            if m == "FEUER":
-                                                if zyk > 1:
-                                                    # Ab Zyklus 2 gibt es einen echten Zwischenstand vom vorherigen Zyklus
-                                                    s1_str, s2_str = hole_score_strings(ev)
-                                                    bewerteter_zyklus = zyk - 1 
-                                                    
-                                                    event_details += f"{' ':>8} | {' ':>7} | {bewerteter_zyklus:^4} | {'SCORE':<8} | {' ':^4} | {'ZWISCHENSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
-                                                    event_details += "\n" + mini_h + sep + "\n" # Leerzeile NACH dem Score-Block
-                                                elif zyk == 1:
-                                                    # Beim allerersten FEUER (Start von Zyklus 1) nur den Header setzen, keinen Score!
-                                                    event_details += "\n" + mini_h + sep + "\n"
-                                            # ----------------------------------------------------
-
-                                            line = f"{prefix}{t} | {tref} | {zyk:^4} | {m[:8]:<8} | {' ':^4} | {'(Statuswechsel)':^18} | {' ':^18} | {' ':^18}\n"
-                                            event_details += line
-                                            
-                                            last_action_was_state = True
-                                    
-                                        elif action == "shoot":
-                                            v = ev.get('v', '-')
-                                            w = clean_l(ev.get('w', []))
-                                            
-                                            # Die saubere Lösung: Zeige Treffer nur in echten Action-States!
-                                            p1 = clean_l(ev.get('p1_t', [])) if m in valid_action_states else ""
-                                            p2 = clean_l(ev.get('p2_t', [])) if m in valid_action_states else ""
-                                    
-                                            line = f"{t} | {tref} | {zyk:^4} | {'SHOT':<8} | {v:^4} | {w:^18} | {p1:^18} | {p2:^18}\n"
-                                            event_details += line
-                                            last_action_was_state = False
-
-                                        elif "Bonus" in action:
-                                            # Macht das dynamische Umfärben der Matrix sichtbar!
-                                            w = clean_l(ev.get('w', []))
-                                            
-                                            # Wir schreiben die Info genau in die Spalte des Spielers, der profitiert!
-                                            p1_text = "[ BONUS ERHALTEN ]" if "1" in action else ""
-                                            p2_text = "[ BONUS ERHALTEN ]" if "2" in action else ""
-                                            
-                                            # w rutscht jetzt korrekt an die 6. Stelle (Zielwahl)
-                                            line = f"{t} | {tref} | {zyk:^4} | {'BONUS':<8} | {' ':^4} | {w:^18} | {p1_text:^18} | {p2_text:^18}\n"
-                                            event_details += line
-                                            last_action_was_state = False
-
-                                        elif action == "anulliere_zyklus":
-                                            p_idx = ev.get('p', -1)
-                                            p1_text = "[ ANNULLIERT ]" if p_idx == 0 else ""
-                                            p2_text = "[ ANNULLIERT ]" if p_idx == 1 else ""
-                                            
-                                            line = f"{t} | {tref} | {zyk:^4} | {'VAR':<8} | {' ':^4} | {'Manuelle Korrektur':^18} | {p1_text:^18} | {p2_text:^18}\n"
-                                            event_details += line
-                                            last_action_was_state = False
-                                        
-                                        elif action.startswith("Rec:"):
-                                            # VIP-Behandlung für Replay-Syncs (dezent, gegen den Kassenzettel-Look!)
-                                            w = clean_l(ev.get('w', []))
-                                            # Wir nutzen ein leises "↳ sync" und lassen die Treffer-Spalten GANZ LEER!
-                                            line = f"{t} | {tref} | {zyk:^4} | {' ↳ sync':<8} | {' ':^4} | {w:^18} | {' ':^18} | {' ':^18}\n"
-                                            event_details += line
-                                            last_action_was_state = False
-
-                                        else:
-                                            # Catch-All für unbekannte Events
-                                            aktions_name = str(action)[:18] if action else "UNKNOWN"
-                                            line = f"{t} | {tref} | {zyk:^4} | {' ':<8} | {' ':^4} | {aktions_name:^18} | {' ':^18} | {' ':^18}\n"
-                                            event_details += line
-                                            last_action_was_state = False 
-
-                                    # --- NEU: ENDSTAND AUS DEM ALLERLETZTEN EVENT HOLEN ---
-                                    if timeline:
-                                        last_ev = timeline[-1]
-                                        s1_str, s2_str = hole_score_strings(last_ev)
-                                        last_zyk = last_ev.get('z', 0)
-                                        
-                                        event_details += f"{sep}\n{' ':>8} | {' ':>7} | {last_zyk:^4} | {'SCORE':<8} | {' ':^4} | {'ENDSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
-                                    # ------------------------------------------------------
-                                        
-                                except Exception as e:
-                                    event_details = f"\n[Fehler beim Laden des Event-Logs: {e}]"
-                            else:
-                                event_details = "\n[Keine detaillierte Event-Datei gefunden]"
-                        
-                        # 3. GUI Text-Widget befüllen
-                        full_text = "\n".join(info_lines) + "\n\n" + event_details
-                        
-                        text_widget = tk.Text(log_window, wrap="none", width=120, height=35, font=("Courier", 20))
-                        text_widget.insert("1.0", full_text)
-                        text_widget.configure(state="disabled")
-                        
-                        # Scrollbars
-                        x_scroll = tk.Scrollbar(log_window, orient="horizontal", command=text_widget.xview)
-                        y_scroll = tk.Scrollbar(log_window, orient="vertical", command=text_widget.yview)
-                        text_widget.configure(xscrollcommand=x_scroll.set, yscrollcommand=y_scroll.set)
-                        
-                        text_widget.grid(row=0, column=0, sticky="nsew")
-                        y_scroll.grid(row=0, column=1, sticky="ns")
-                        x_scroll.grid(row=1, column=0, sticky="ew")
-                        
-                        log_window.grid_rowconfigure(0, weight=1)
-                        log_window.grid_columnconfigure(0, weight=1)
-
-        def export_match_to_yaml():
-            selected_items = tree.selection()
-            for item in selected_items:
-                values = tree.item(item, "values")
-                
-                # Wir suchen den passenden Eintrag in unseren Master-Daten
-                for entry in self.highscore_manager.data:
-                    if entry["timestamp"] == values[5]:
-                        match_id = entry.get("match_id")
-                        
-                        if match_id:
-                            log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
-                            time_debt_ms = 0  # Der Puffer für Assertions
-                            if os.path.exists(log_path):
-                                try:
-                                    with open(log_path, "r", encoding="utf-8") as f:
-                                        geladene_daten = json.load(f)
-                                        # --- Der neue, strenge Türsteher ---
-                                        if not isinstance(geladene_daten, dict) or "timeline" not in geladene_daten:
-                                            from tkinter import messagebox
-                                            messagebox.showinfo(
-                                                "Replay nicht möglich", 
-                                                f"Match {match_id} verwendet ein veraltetes Speicherformat.\n\n"
-                                                "Replays stehen nur für neuere Matches zur Verfügung."
-                                            )
-                                            continue  # Bricht hier ab und geht zum nächsten Match in der Schleife
-                                        
-                                        # Ab hier können wir uns zu 100% darauf verlassen, dass das Format neu und sauber ist
-                                        timeline = geladene_daten.get("timeline", [])
-                                        yaml_lines = ["scenario:"]
-                                        
-                                        # =================================================================
-                                        # --- 1. METADATEN AUSLESEN (SINGLE SOURCE OF TRUTH) ---
-                                        # =================================================================
-                                        metadata = geladene_daten.get("metadata", entry) 
-                                        
-                                        programm_name = metadata.get("programm_name", "").strip()
-                                        is_kaenguru   = metadata.get("kaenguru_modus", 0) == 1
-                                        is_zufall     = metadata.get("zufall", 0) == 1
-                                        
-                                        #sp1 = metadata.get("spieler", "Spieler 1")
-                                        #sp2 = metadata.get("spieler2", "Spieler 2")
-                                        #if sp2 is None: sp2 = "" 
-
-                                        # =================================================================
-                                        # --- 2. PROGRAMM-INDEX VIA CSV ERMITTELN ---
-                                        # =================================================================
-                                        # Direkt abbrechen, wenn modifiziert
-                                        if "(modifiziert)" in programm_name:
-                                            from tkinter import messagebox
-                                            messagebox.showinfo("Replay nicht möglich", 
-                                                f"Das Match '{programm_name}' enthält manuell veränderte Einstellungen.\n\n"
-                                                "Replays werden aktuell nur für Standard-Programme (ohne Modifikationen) unterstützt.")
-                                            continue 
-                                        
-                                        # Alle Tags entfernen
-                                        base_programm_name = programm_name.replace(" (debug)", "")\
-                                                                          .replace(" (1min)", "")\
-                                                                          .replace(" (dev)", "").strip()
-                                        prog_index = None
-                                        
-                                        # CSV durchsuchen
-                                        try:
-                                            if os.path.exists("Programme.csv"):
-                                                with open("Programme.csv", "r", encoding="utf-8") as csv_file:
-                                                    lines = csv_file.readlines()
-                                                    for i in range(2, len(lines)):
-                                                        row_name = lines[i].split(',')[0].strip()
-                                                        if row_name == base_programm_name:
-                                                            prog_index = i - 2  # Korrektur um die 2 Header-Zeilen
-                                                            break
-                                        except Exception as e:
-                                            print(f"Fehler beim Lesen der Programme.csv: {e}")
-
-                                        if prog_index is None:
-                                            from tkinter import messagebox
-                                            messagebox.showerror("Export abgebrochen", 
-                                                f"Das Programm '{base_programm_name}' wurde in der Programme.csv nicht gefunden.\n"
-                                                "Ein Replay ist nur für aktuell existierende Programme möglich.")
-                                            continue 
-
-                                        # =================================================================
-                                        # --- 3. METADATEN NORMALISIEREN & REPLAY-SPEEDUPS ---
-                                        # =================================================================
-                                        # Spieler-Namen absichern (falls sie fehlen oder None sind)
-                                        metadata["spieler"] = metadata.get("spieler", "Spieler 1")
-                                        # Wenn spieler2 'None' oder leer ist, machen wir sicher einen Leerstring "" daraus
-                                        metadata["spieler2"] = metadata.get("spieler2") or "" 
-
-                                        # Fallback für alte Matches mit "Alarmanlage" auf der Konsole
-                                        if "default_feuerzeit" not in metadata:
-                                            fallback_wert = metadata.get("feuer", 10)
-                                            print(f"⚠️ HINWEIS (Match {match_id}): 'default_feuerzeit' fehlt. Nutze Fallback 'feuer' ({fallback_wert}s).")
-                                            metadata["default_feuerzeit"] = fallback_wert
-
-                                        # Originale Ladezeit sichern
-                                        lg = metadata.get("ladenGelb", 3)
-                                        new_lg = lg 
-                                        
-                                        # Smart-Speedups anwenden
-                                        if "(dev)" in programm_name:
-                                            metadata["vorbereiten"] = 1
-                                            metadata["ladenGelb"] = 1
-                                            new_lg = 1
-                                        else:
-                                            new_lg = min(lg, 3)
-                                            metadata["ladenGelb"] = new_lg
-
-                                        # =================================================================
-                                        # --- 4. INITIALISIERUNG & HISTORISCHE ZEITKAPSEL ---
-                                        # =================================================================
-                                        # Programm laden
-                                        yaml_lines.append(f"  - name: \"Programm {prog_index} laden: {base_programm_name}\"")
-                                        yaml_lines.append(f"    action: \"call_sm_method\"")
-                                        yaml_lines.append(f"    wert: [\"setProgramm\", {prog_index}]")
-                                        yaml_lines.append(f"    step_time: 300")
-                                        yaml_lines.append("")
-
-                                        # Replay Nummer setzen
-                                        replay_id_str = f"Rec\u200A{match_id}"
-                                        yaml_lines.append(f"  - name: \"Replay-ID setzen ({replay_id_str})\"")
-                                        yaml_lines.append(f"    action: \"call_sm_method\"")
-                                        yaml_lines.append(f"    wert: [\"set_replay_match\", \"{replay_id_str}\"]")
-                                        yaml_lines.append(f"    step_time: 250")
-                                        yaml_lines.append("")          
-
-                                        # --- DIE ALLGEMEINE SCHLEIFE FÜR ALLE PARAMETER ---
-                                        sync_params = {
-                                            "spieler": "Spieler 1",
-                                            "spieler2": "Spieler 2",
-                                            "achtung": "Achtung-Zeit",
-                                            "default_feuerzeit": "Feuer-Zeit (Startwert)",
-                                            "vorbereiten": "Vorbereitungs-Zeit (inkl. Speedup)",
-                                            "ladenGelb": "Lade-Zeit Gelb (inkl. Speedup)",
-                                            "wiederholungen": "Wiederholungen"
-                                        }
-
-                                        for key, label in sync_params.items():
-                                            wert = metadata.get(key)
-                                            if wert is not None:
-                                                yaml_lines.append(f"  - name: \"Wert setzen: {label} ({wert})\"")
-                                                yaml_lines.append(f"    action: \"set_sm_attr\"")
-                                                
-                                                # Trick: 'default_feuerzeit' wird im StateManager auf 'feuer' gemappt
-                                                ziel_attribut = "feuer" if key == "default_feuerzeit" else key
-                                                
-                                                # YAML-Formatierung: Strings brauchen Anführungszeichen, Zahlen nicht!
-                                                wert_str = f'"{wert}"' if isinstance(wert, str) else wert
-                                                
-                                                yaml_lines.append(f"    wert: [\"{ziel_attribut}\", {wert_str}]")
-                                                yaml_lines.append(f"    step_time: 10")
-                                                yaml_lines.append("")
-
-                                        # MODIFIZIERT TAG ENTFERNEN
-                                        yaml_lines.append(f"  - name: \"Modifiziert-Tag entfernen\"")
-                                        yaml_lines.append(f"    action: \"remove_modifiziert_tag\"")
-                                        yaml_lines.append(f"    step_time: 10")        
-                                        yaml_lines.append("")
-
-                                        # Countdown starten
-                                        yaml_lines.append(f"  - name: \"Countdown starten\"")
-                                        yaml_lines.append(f"    action: \"start_countdown\"")
-                                        yaml_lines.append(f"    step_time: 500")
-                                        yaml_lines.append("")
-
-                                        # =================================================================
-                                        # --- 5. NEUE MATCH TIMELINE VERARBEITUNG (Single-Pass Parser) ---
-                                        # =================================================================
-                                        last_t_orig_ms = 0
-                                        current_state = ""
-                                        accumulated_delay_ms = 0
-                                        phase_t_orig_ms = 0 # NEU: Stoppuhr für die aktuelle Phase
-                                        
-                                        lg_safe = max(1, lg)
-
-                                        for ev in timeline:
-                                            action_type = ev.get('a', '')
-                                            t_orig_ms = int(ev.get('t', 0.0) * 1000)
-                                            z = max(0, ev.get('z', -1))
-                                            m = ev.get('m', '')
-                                            
-                                            delta_orig_ms = max(0, t_orig_ms - last_t_orig_ms)
-                                            delta_new_ms = delta_orig_ms # Standardmäßig 1:1
-                                            
-                                            # --- DIE GENIALE 2-SEKUNDEN-LOGIK ---
-                                            if current_state == "LADEN" and lg_safe > new_lg:
-                                                # Wir schauen, wo wir zeitlich in der Ladephase stehen
-                                                next_phase_t_orig_ms = phase_t_orig_ms + delta_orig_ms
-                                                
-                                                def map_laden_time(t_ms):
-                                                    if new_lg <= 2: # Falls Zielzeit extrem kurz ist, normal linear stauchen
-                                                        return t_ms * (new_lg / lg_safe)
-                                                    
-                                                    t_uncomp = 2000 # Die ersten 2 Sekunden (2000ms) bleiben unangetastet!
-                                                    if t_ms <= t_uncomp:
-                                                        return float(t_ms)
-                                                    else:
-                                                        # Der Rest wird gequetscht
-                                                        ratio = (new_lg * 1000 - t_uncomp) / max(1, (lg_safe * 1000 - t_uncomp))
-                                                        return t_uncomp + (t_ms - t_uncomp) * ratio
-                                                
-                                                mapped_start = map_laden_time(phase_t_orig_ms)
-                                                mapped_end = map_laden_time(next_phase_t_orig_ms)
-                                                
-                                                delta_new_ms = int(mapped_end - mapped_start)
-                                                phase_t_orig_ms = next_phase_t_orig_ms
-                                            elif current_state == "LADEN":
-                                                phase_t_orig_ms += delta_orig_ms
-                                            
-                                            # Kompatibilität für verschiedene Bezeichnungen des Statuswechsels
-                                            if action_type in ["state_change", "feuer_start", "zyklus_start"]:
-                                                
-                                                accumulated_delay_ms += delta_new_ms
-                                                current_state = m
-                                                phase_t_orig_ms = 0 # Stoppuhr-Reset für die nächste Phase!
-                                                
-                                                # Wenn wir in FEUER wechseln, müssen wir die Startziele setzen
-                                                if m == "FEUER":
-                                                    w_init = ev.get('w', [])
-                                                    if w_init and (is_kaenguru or is_zufall):
-                                                        yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
-                                                        yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                        yaml_lines.append(f"    wert: [{w_init}]") 
-                                                        # Hier leeren wir unseren Zeit-Stapel aus!
-                                                        yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
-                                                        yaml_lines.append("")
-                                                        accumulated_delay_ms = 0 # Stapel resetten
-                                                        time_debt_ms += 50
-                                                        
-                                            # --- ZENTRALE AKTIONEN (Schuss & VAR-Eingriff) ---
-                                            elif action_type in ["shoot", "anulliere_zyklus"]:
-                                                
-                                                # ==========================================
-                                                # 1. GEMEINSAME ZEITVERWALTUNG
-                                                # ==========================================
-                                                delta_new_ms = delta_new_ms + accumulated_delay_ms
-                                                accumulated_delay_ms = 0 # Stapel leeren
-                                                delta_new_ms = max(50, delta_new_ms)
-
-                                                # Zeitschulden abbauen
-                                                if time_debt_ms > 0:
-                                                    abbau_debt = min(delta_new_ms, time_debt_ms) 
-                                                    delta_new_ms -= abbau_debt         
-                                                    time_debt_ms -= abbau_debt 
-
-                                                # ==========================================
-                                                # 2. SPEZIFISCHER YAML-EXPORT
-                                                # ==========================================
-                                                if action_type == "shoot":
-                                                    wert = ev.get('v', 0)
-                                                    yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
-                                                    yaml_lines.append(f"    action: \"shoot\"")
-                                                    yaml_lines.append(f"    wert: {wert}")
-                                                    yaml_lines.append(f"    step_time: {delta_new_ms}")
-                                                    yaml_lines.append("")
-                                                    
-                                                    # Historisches Folgeziel sofort nachschieben
-                                                    w_historisch = ev.get('w', [])
-                                                    if w_historisch and is_kaenguru:
-                                                        yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
-                                                        yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                        yaml_lines.append(f"    wert: [{w_historisch}]")
-                                                        yaml_lines.append(f"    step_time: 0")
-                                                        yaml_lines.append("")
-                                                        
-                                                elif action_type == "anulliere_zyklus":
-                                                    p_idx = ev.get('p', 0)
-                                                    yaml_lines.append(f"  - name: \"VAR-Eingriff: Annulliere Zyklus für Spieler {p_idx} (Zyklus {z})\"")
-                                                    yaml_lines.append(f"    action: \"anulliere_zyklus\"")
-                                                    yaml_lines.append(f"    wert: {p_idx}")
-                                                    yaml_lines.append(f"    step_time: {delta_new_ms}")
-                                                    yaml_lines.append("")
-
-                                                # ==========================================
-                                                # 3. GEMEINSAME STATUSPRÜFUNG FÜR DEN ROBOTER
-                                                # ==========================================
-                                                aktion_text = f"Schuss auf {wert}" if action_type == "shoot" else "VAR-Eingriff"
-                                                yaml_lines.append(f"  - name: \"Prüfe Status nach {aktion_text}\"")
-                                                yaml_lines.append(f"    actual_attr: \"get_state\"")
-                                                yaml_lines.append(f"    expected: '{m}'")
-                                                yaml_lines.append(f"    step_time: 10")  
-                                                yaml_lines.append("")
-                                                time_debt_ms += 10
-                                                
-                                            last_t_orig_ms = t_orig_ms
-
-                                        # =================================================================
-                                        
-                                        yaml_lines.append(f"  - name: \"GUI schließen\"")
-                                        yaml_lines.append(f"    action: \"close_gui\"")
-                                        yaml_lines.append(f"    step_time: 20000")
-                                        yaml_lines.append("")
-
-                                        # --- IN DATEI SPEICHERN ---
-                                        export_dir = "./savegames/replays"
-                                        os.makedirs(export_dir, exist_ok=True)
-                                        yaml_filename = os.path.join(export_dir, f"REPLAY_MATCH{match_id:06d}.yaml")
-
-                                        with open(yaml_filename, 'w', encoding='utf-8') as f:
-                                            f.write("\n".join(yaml_lines))
-                                            
-                                        print("Export erfolgreich:", f"Replay exportiert nach: {yaml_filename}")
-                                        
-                                except Exception as e:
-                                    from tkinter import messagebox
-                                    messagebox.showerror("Fehler", f"Fehler beim Exportieren:\n{e}")
-                            else:
-                                from tkinter import messagebox
-                                messagebox.showwarning("Nicht gefunden", f"Kein Detail-Log für Match {match_id} gefunden.")
-
-        def play_replay():
-            import subprocess
-            import sys
-            
-            selected_items = tree.selection()
-            if not selected_items:
-                return
-                
-            for item in selected_items:
-                values = tree.item(item, "values")
-                
-                for entry in self.highscore_manager.data:
-                    if entry["timestamp"] == values[5]:
-                        match_id = entry.get("match_id")
-                        if match_id:
-                            # Wir suchen die YAML-Datei im replays-Ordner
-                            yaml_filename = os.path.join("savegames", "replays", f"REPLAY_MATCH{match_id:06d}.yaml")
-                            
-                            if os.path.exists(yaml_filename):
-                                print(f"Starte Roboter für {yaml_filename}...")
-                                # Test-Skript als eigenen Prozess starten!
-                                # sys.executable stellt sicher, dass exakt dieselbe Python-Version genutzt wird
-                                subprocess.Popen([sys.executable, "tests/test_ReplayRobot.py", yaml_filename])
-                            else:
-                                from tkinter import messagebox
-                                messagebox.showwarning("Fehlendes Replay", 
-                                    f"Es wurde noch kein YAML für Match {match_id} exportiert.\n"
-                                    "Bitte klicke zuerst auf 'Export Replay'.")
-                        break
-
-
- 
-        def on_press(event):
-            global press_timer
-            press_timer = tree.after(750, show_context_menu, event)  # 1000 ms = 1 Sekunde Halten
-        
-        def on_release(event):
-            global press_timer
-            if press_timer:
-                tree.after_cancel(press_timer)  # Wenn losgelassen wird, die Timer-Aktion abbrechen
-        
+        # Event-Bindings für Maus & Tasten
         press_timer = None     
-        
-        # Maus binden für das Kontextmenü
-        tree.bind("<ButtonPress-1>", on_press)  # Wenn gedrückt wird
-        tree.bind("<ButtonRelease-1>", on_release)  # Wenn losgelassen wird        
-        tree.bind("<Button-3>", show_context_menu)
-        
-        # I und ENTF binden
-        tree.bind("<Delete>", lambda event: delete_selected_entries())
-        tree.bind("<i>", lambda event: show_selected_entries())
+        self.tree.bind("<ButtonPress-1>", lambda e: self._on_press(e))
+        self.tree.bind("<ButtonRelease-1>", lambda e: self._on_release(e))        
+        self.tree.bind("<Button-3>", lambda e: self.show_context_menu(e))
+        self.tree.bind("<Delete>", lambda event: self.delete_selected_entries())
+        self.tree.bind("<i>", lambda event: self.show_selected_entries())
         
         # Dropdown-Menü-Aktion binden
-        self.mode_dropdown.bind("<<ComboboxSelected>>", lambda event: update_highscores())
+        self.mode_dropdown.bind("<<ComboboxSelected>>", lambda event: self.update_highscores())
+   
+        # Initialer Start
+        self.update_highscores()
+
+    # --- Timer-Hilfsfunktionen für das Kontextmenü ---
+    def _on_press(self, event):
+        self._press_timer = self.tree.after(750, self.show_context_menu, event)
     
-        # Highscores initial anzeigen
-        update_highscores()
+    def _on_release(self, event):
+        if hasattr(self, '_press_timer') and self._press_timer:
+            self.tree.after_cancel(self._press_timer)
+
+    def sort_column(self, col, reverse):
+        def convert_value(value):
+            try:
+                if col == "Zeitstempel":
+                    return dt.datetime.strptime(value, "%d.%m.%y %H:%M:%S")
+                if value == "-":
+                    return -1  
+                return float(value) if "." in value else int(value) 
+            except ValueError:
+                return value            
+        # Daten abrufen und konvertieren
+        data = [(convert_value(self.tree.set(k, col)), k) for k in self.tree.get_children('')]
+        data.sort(reverse=reverse, key=lambda t: t[0])
+        # Einträge bewegen
+        for index, (val, k) in enumerate(data):
+            self.tree.move(k, '', index)
+        # Spaltenüberschrift mit Sortierung aktualisieren
+        self.tree.heading(col, command=lambda: self.sort_column(col, not reverse))                
+
+    # Funktion zum Aktualisieren der Highscore-Anzeige  
+    def update_highscores(self):
+        selected = self.mode_dropdown.get()
+        filtered_data = self.highscore_manager.filter_highscores(
+            mode_name=None if selected == "Alle Modi" else selected, sort_by="gesamtpunkte"
+        )# Hier wird es nur nach den Gesamtpunkten von Player 1 sortiert.
+        self.update_treeview(filtered_data)        
+        self.sort_column("Zeitstempel", True) # AL AL AL Jetzt wird richtig sortiert   
+
+    def update_treeview(self, data):
+        self.anzahl_eintraege.set(len(data))
+        # Treeview leeren
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+        # Tags definieren mit Farben
+        self.tree.tag_configure("even", background="thistle")
+        self.tree.tag_configure("odd", background="lavenderblush")
+        tag = "even"
+        # Einträge hinzufügen
+        for hs in data:
+            tag = "odd" if tag == "even" else "even"
+            
+            spieler_name = hs.get("spieler", "Unbekannt")
+            punkte_durchgang = hs.get("punkte_durchgang", 0)
+            gesamtpunkte = hs.get("gesamtpunkte", 0)
+            match_id = hs.get("match_id", "-")
+            
+            if hs.get("survival_modus", 0) == 1 and hs.get("gegner_modus", 0) == 1:
+                spieler_name += f"; {hs['spieler2']}; {hs.get('zyklus','N/A')} Rnd" 
+                punkte_durchgang = hs.get("punkte_durchgang", 0) + hs.get("punkte_durchgang_pl2", 0)
+                gesamtpunkte = round(hs.get("gesamtpunkte", 0) + hs.get("gesamtpunkte_pl2", 0), 3)     
+            
+            self.tree.insert(
+                "", "end",
+                values=(match_id, spieler_name, hs.get("programm_name", "Unbekannt"), punkte_durchgang, gesamtpunkte, hs.get("timestamp", "Unbekannt")),
+                tags=(tag,)
+            )
+            
+            if hs.get("survival_modus", 0) == 0 and hs.get("gegner_modus", 0) == 1:
+                self.tree.insert(
+                    "", "end",
+                    values=(match_id, hs.get("spieler2", "Unbekannt"), hs.get("programm_name", "Unbekannt"), hs.get("punkte_durchgang_pl2", 0), hs.get("gesamtpunkte_pl2", 0), hs.get("timestamp", "Unbekannt")),
+                    tags=(tag,)
+                )
+
+    def apply_filters(self):
+        self.update_treeview(self.highscore_manager.data)
+        self.update_highscores()
     
-    def save_score(self):#, punkte_durchgang, speedpunkte_durchgang, gesamtpunkte):
+        filtered_items = []
+        for row_id in self.tree.get_children():
+            values = self.tree.item(row_id, "values")
+            match = True
+    
+            for col, entry in self.filters.items():
+                val = entry.get()
+                if val:
+                    try:
+                        cell_value = values[list(self.filters.keys()).index(col)]
+    
+                        if col in ["punkte_durchgang", "gesamtpunkte"]:
+                            cell_value = float(cell_value)
+                            if ">=" in val:
+                                if cell_value < float(val.split(">=")[1].strip()): match = False
+                            elif "<=" in val:
+                                if cell_value > float(val.split("<=")[1].strip()): match = False
+                            elif ">" in val:
+                                if cell_value <= float(val.split(">")[1].strip()): match = False
+                            elif "<" in val:
+                                if cell_value >= float(val.split("<")[1].strip()): match = False
+                            elif val.replace(".", "", 1).isdigit():
+                                if cell_value != float(val.strip()): match = False
+    
+                        elif col == "timestamp":
+                            if "-" in val:
+                                start, end = map(str.strip, val.split("-"))
+                                start_date = dt.datetime.strptime(start, "%d.%m.%y")
+                                end_date = dt.datetime.strptime(end, "%d.%m.%y") + dt.timedelta(days=1)
+                                cell_date = dt.datetime.strptime(cell_value, "%d.%m.%y %H:%M:%S")
+                                if not (start_date <= cell_date <= end_date): match = False
+    
+                        elif col in ["match_id", "spieler", "programm_name"]:
+                            pattern = re.compile(val, re.IGNORECASE)
+                            if not pattern.search(str(cell_value)): match = False
+    
+                    except (ValueError, IndexError):
+                        match = False
+    
+            if match:
+                filtered_items.append(row_id)
+    
+        for row_id in self.tree.get_children():
+            if row_id not in filtered_items:
+                self.tree.delete(row_id)
+        
+        self.sort_column("Zeitstempel", True)
+
+    def show_context_menu(self, event):
+        context_menu = tk.Menu(self.highscore_window, tearoff=0)
+        context_menu.add_command(label="Informationen", command=self.show_selected_entries, font=('Arial', 35))            
+        context_menu.add_command(label="Highscore Log", command=self.show_selected_highscore_logs, font=('Arial', 35))
+        context_menu.add_command(label="Export Replay", command=self.export_match_to_yaml, font=('Arial', 35))
+        context_menu.add_command(label="Replay abspielen", command=self.play_replay, font=('Arial', 35))
+        context_menu.add_command(label="Löschen", command=self.delete_selected_entries, font=('Arial', 35))
+        context_menu.post(event.x_root, event.y_root)
+
+    def delete_selected_entries(self):
+        selected_items = self.tree.selection()
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            for entry in self.highscore_manager.data:
+                if entry["timestamp"] == values[5]:
+                    entry_data = f"Programm: {entry.get('programm_name','unbekannt')}\n{entry.get('timestamp','unbekannt')}\n\n" \
+                                 f"Spieler: {entry.get('spieler','unbekannt')}\nPunkte: {entry.get('punkte_durchgang','0')}\nGesamtpunkte: {entry.get('gesamtpunkte','0')}\n" 
+                    if entry["gegner_modus"] == 1:
+                        entry_data += f"\nSpieler 2: {entry.get('spieler2','unbekannt')}\nPunkte: {entry.get('punkte_durchgang_pl2','0')}\nGesamtpunkte: {entry.get('gesamtpunkte_pl2','0')}\n"  
+                    
+                    self.highscore_window.withdraw()
+                    antwort = messagebox.askyesno("Bestätigung", f"Eintrag wirklich löschen?\n\n{entry_data}")
+                    self.highscore_window.deiconify()
+                    self.highscore_window.lift()
+                    if not antwort: break
+                    self.highscore_manager.data.remove(entry)
+                    break
+        self.update_treeview(self.highscore_manager.data)
+        self.apply_filters()
+        
+        with open(self.highscore_manager.file_path, "w") as file:
+            json.dump(self.highscore_manager.data, file, indent=4)
+
+    def show_selected_entries(self): 
+        exclude_keys = {"highscore_log"}
+        selected_items = self.tree.selection() 
+        for item in selected_items: 
+            values = self.tree.item(item, "values") 
+            for entry in self.highscore_manager.data:
+                if entry["timestamp"] == values[5]:
+                    text = "\n".join([f"{key}: {value}" for key, value in entry.items() if key not in exclude_keys])
+                    messagebox.showinfo("Highscore-Details", text)
+
+    def show_selected_highscore_logs(self):
+        def clean_l(lst):
+            if not lst: return ""
+            return ", ".join([str(x) for x in lst if x != -1])       
+
+        def hole_score_strings(ev_dict):
+            b1, b2 = ev_dict.get('p1_pd', 0), ev_dict.get('p2_pd', 0)
+            t1, t2 = b1 + ev_dict.get('p1_spd', 0.0), b2 + ev_dict.get('p2_spd', 0.0)
+            return f"{b1} Pkte ({t1:.3f})", f"{b2} Pkte ({t2:.3f})"
+
+        # mini_h und sep WURDEN HIER ENTFERNT UND IN DIE SCHLEIFE VERSCHOBEN!
+        
+        selected_items = self.tree.selection()
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            for entry in self.highscore_manager.data:
+                if entry["timestamp"] == values[5]:
+                    
+                    # --- ELA-UPGRADE: Dynamischer Tabellenkopf mit Spielernamen ---
+                    # Namen auslesen und auf max. 18 Zeichen begrenzen, damit die Tabelle nicht platzt
+                    sp1_name = entry.get('spieler', 'Spieler 1')[:18]
+                    
+                    # Bei Singleplayer bleibt die rechte Spalte im Header komplett leer
+                    if entry.get("gegner_modus", 0) != 0:
+                        sp2_name = entry.get('spieler2', 'Spieler 2')[:18]
+                    else:
+                        sp2_name = ""
+                        
+                    mini_h = f"{'Zeit':>8} | {'Ref':^7} | {'Zyk':^4} | {'Aktion':<8} | {'Ziel':^4} | {'Zielwahl':^18} | {sp1_name:^18} | {sp2_name:^18}\n"
+                    sep = "-" * (len(mini_h) - 1)
+                    last_action_was_state = False
+                    # --------------------------------------------------------------
+
+                    log_window = tk.Toplevel()
+                    log_window.title(f"Detail-Log: {entry.get('programm_name', 'Unbekannt')}")
+                    
+                    info_lines = [
+                        f"PROGRAMM: {entry.get('programm_name', '')}",
+                        f"SPIELER 1: {entry.get('spieler', '')} | Punkte: {entry.get('punkte_durchgang', 0)}",
+                    ]
+                    if entry.get("gegner_modus", 0) != 0:
+                        info_lines.append(f"SPIELER 2: {entry.get('spieler2', 'N/A')} | Punkte: {entry.get('punkte_durchgang_pl2', 0)}")
+                    info_lines.append(f"ZEITSTEMPEL: {entry.get('timestamp', '')}")
+                    info_lines.append("-" * 75)
+                    info_lines.append("KLASSISCHES LOG:")
+                    info_lines.append(entry.get('highscore_log', '– Kein Log vorhanden –'))
+                    info_lines.append("-" * 75)
+                    
+                    match_id = entry.get("match_id")
+                    event_details = ""
+                    
+                    if match_id:
+                        log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
+                        if os.path.exists(log_path):
+                            try:
+                                with open(log_path, "r", encoding="utf-8") as f:
+                                    geladene_daten = json.load(f)
+                                    timeline = geladene_daten.get("timeline", []) if isinstance(geladene_daten, dict) else geladene_daten
+                                
+                                event_details = f"DETAILLIERTES EVENT-LOG: MATCH{match_id:06d}\n\n{mini_h}{sep}\n"
+                                valid_action_states = [state.name for state in GameState.action_states()]
+                                
+                                for ev in timeline:
+                                    action = ev.get('a', '')
+                                    m = ev.get('m', '')
+                                    t = f"{ev.get('t', 0):>7.2f}s"
+                                    tref = f"{ev.get('tref', 0):>6.2f}s"
+                                    zyk = ev.get('z', 0)
+                                
+                                    if action == "state_change":
+                                        if m == "FEUER":
+                                            if zyk > 1:
+                                                s1_str, s2_str = hole_score_strings(ev)
+                                                event_details += f"{' ':>8} | {' ':>7} | {zyk-1:^4} | {'SCORE':<8} | {' ':^4} | {'ZWISCHENSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
+                                                event_details += "\n" + mini_h + sep + "\n"
+                                            elif zyk == 1:
+                                                event_details += "\n" + mini_h + sep + "\n"
+                                        
+                                        line = f"{t} | {tref} | {zyk:^4} | {m[:8]:<8} | {' ':^4} | {'(Statuswechsel)':^18} | {' ':^18} | {' ':^18}\n"
+                                        event_details += line
+                                        last_action_was_state = True
+                                
+                                    elif action == "shoot":
+                                        v = ev.get('v', '-')
+                                        w = clean_l(ev.get('w', []))
+                                        p1 = clean_l(ev.get('p1_t', [])) if m in valid_action_states else ""
+                                        p2 = clean_l(ev.get('p2_t', [])) if m in valid_action_states else ""
+                                        line = f"{t} | {tref} | {zyk:^4} | {'SHOT':<8} | {v:^4} | {w:^18} | {p1:^18} | {p2:^18}\n"
+                                        event_details += line
+                                        last_action_was_state = False
+
+                                    elif action.startswith("Rec:"):
+                                        w = clean_l(ev.get('w', []))
+                                        line = f"{t} | {tref} | {zyk:^4} | {' ↳ sync':<8} | {' ':^4} | {w:^18} | {' ':^18} | {' ':^18}\n"
+                                        event_details += line
+                                        last_action_was_state = False
+
+                                    elif "Bonus" in action:
+                                        w = clean_l(ev.get('w', []))
+                                        p1_text = "[ BONUS ERHALTEN ]" if "1" in action else ""
+                                        p2_text = "[ BONUS ERHALTEN ]" if "2" in action else ""
+                                        line = f"{t} | {tref} | {zyk:^4} | {'BONUS':<8} | {' ':^4} | {w:^18} | {p1_text:^18} | {p2_text:^18}\n"
+                                        event_details += line
+                                        last_action_was_state = False
+
+                                    elif action == "anulliere_zyklus":
+                                        p_idx = ev.get('p', -1)
+                                        p1_text = "[ ANNULLIERT ]" if p_idx == 0 else ""
+                                        p2_text = "[ ANNULLIERT ]" if p_idx == 1 else ""
+                                        line = f"{t} | {tref} | {zyk:^4} | {'VAR':<8} | {' ':^4} | {'Manuelle Korrektur':^18} | {p1_text:^18} | {p2_text:^18}\n"
+                                        event_details += line
+                                        last_action_was_state = False
+                                        
+                                    else:
+                                        aktions_name = str(action)[:18] if action else "UNKNOWN"
+                                        line = f"{t} | {tref} | {zyk:^4} | {' ':<8} | {' ':^4} | {aktions_name:^18} | {' ':^18} | {' ':^18}\n"
+                                        event_details += line
+                                        last_action_was_state = False 
+
+                                if timeline:
+                                    s1_str, s2_str = hole_score_strings(timeline[-1])
+                                    event_details += f"{sep}\n{' ':>8} | {' ':>7} | {timeline[-1].get('z', 0):^4} | {'SCORE':<8} | {' ':^4} | {'ENDSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
+                                    
+                            except Exception as e:
+                                event_details = f"\n[Fehler beim Laden des Event-Logs: {e}]"
+                        else:
+                            event_details = "\n[Keine detaillierte Event-Datei gefunden]"
+                    
+                    full_text = "\n".join(info_lines) + "\n\n" + event_details
+                    text_widget = tk.Text(log_window, wrap="none", width=120, height=35, font=("Courier", 20))
+                    text_widget.insert("1.0", full_text)
+                    text_widget.configure(state="disabled")
+                    
+                    x_scroll = tk.Scrollbar(log_window, orient="horizontal", command=text_widget.xview)
+                    y_scroll = tk.Scrollbar(log_window, orient="vertical", command=text_widget.yview)
+                    text_widget.configure(xscrollcommand=x_scroll.set, yscrollcommand=y_scroll.set)
+                    
+                    text_widget.grid(row=0, column=0, sticky="nsew")
+                    y_scroll.grid(row=0, column=1, sticky="ns")
+                    x_scroll.grid(row=1, column=0, sticky="ew")
+                    log_window.grid_rowconfigure(0, weight=1)
+                    log_window.grid_columnconfigure(0, weight=1)
+
+    def export_match_to_yaml(self):
+        selected_items = self.tree.selection()
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            
+            # Wir suchen den passenden Eintrag in unseren Master-Daten
+            for entry in self.highscore_manager.data:
+                if entry["timestamp"] == values[5]:
+                    match_id = entry.get("match_id")
+                    
+                    if match_id:
+                        log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
+                        time_debt_ms = 0  # Der Puffer für Assertions
+                        if os.path.exists(log_path):
+                            try:
+                                with open(log_path, "r", encoding="utf-8") as f:
+                                    geladene_daten = json.load(f)
+                                    # --- Der neue, strenge Türsteher ---
+                                    if not isinstance(geladene_daten, dict) or "timeline" not in geladene_daten:
+                                        from tkinter import messagebox
+                                        messagebox.showinfo(
+                                            "Replay nicht möglich", 
+                                            f"Match {match_id} verwendet ein veraltetes Speicherformat.\n\n"
+                                            "Replays stehen nur für neuere Matches zur Verfügung."
+                                        )
+                                        continue  # Bricht hier ab und geht zum nächsten Match in der Schleife
+                                    
+                                    # Ab hier können wir uns zu 100% darauf verlassen, dass das Format neu und sauber ist
+                                    timeline = geladene_daten.get("timeline", [])
+                                    yaml_lines = ["scenario:"]
+                                    
+                                    # =================================================================
+                                    # --- 1. METADATEN AUSLESEN (SINGLE SOURCE OF TRUTH) ---
+                                    # =================================================================
+                                    metadata = geladene_daten.get("metadata", entry) 
+                                    
+                                    programm_name = metadata.get("programm_name", "").strip()
+                                    is_kaenguru   = metadata.get("kaenguru_modus", 0) == 1
+                                    is_zufall     = metadata.get("zufall", 0) == 1
+
+                                    # =================================================================
+                                    # --- 2. PROGRAMM-INDEX VIA CSV ERMITTELN ---
+                                    # =================================================================
+                                    # Direkt abbrechen, wenn modifiziert
+                                    if "(modifiziert)" in programm_name:
+                                        from tkinter import messagebox
+                                        messagebox.showinfo("Replay nicht möglich", 
+                                            f"Das Match '{programm_name}' enthält manuell veränderte Einstellungen.\n\n"
+                                            "Replays werden aktuell nur für Standard-Programme (ohne Modifikationen) unterstützt.")
+                                        continue 
+                                    
+                                    # Alle Tags entfernen
+                                    base_programm_name = programm_name.replace(" (debug)", "")\
+                                                                      .replace(" (1min)", "")\
+                                                                      .replace(" (dev)", "").strip()
+                                    prog_index = None
+                                    
+                                    # CSV durchsuchen
+                                    try:
+                                        if os.path.exists("Programme.csv"):
+                                            with open("Programme.csv", "r", encoding="utf-8") as csv_file:
+                                                lines = csv_file.readlines()
+                                                for i in range(2, len(lines)):
+                                                    row_name = lines[i].split(',')[0].strip()
+                                                    if row_name == base_programm_name:
+                                                        prog_index = i - 2  # Korrektur um die 2 Header-Zeilen
+                                                        break
+                                    except Exception as e:
+                                        print(f"Fehler beim Lesen der Programme.csv: {e}")
+
+                                    if prog_index is None:
+                                        from tkinter import messagebox
+                                        messagebox.showerror("Export abgebrochen", 
+                                            f"Das Programm '{base_programm_name}' wurde in der Programme.csv nicht gefunden.\n"
+                                            "Ein Replay ist nur für aktuell existierende Programme möglich.")
+                                        continue 
+
+                                    # =================================================================
+                                    # --- 3. METADATEN NORMALISIEREN & REPLAY-SPEEDUPS ---
+                                    # =================================================================
+                                    # Spieler-Namen absichern (falls sie fehlen oder None sind)
+                                    metadata["spieler"] = metadata.get("spieler", "Spieler 1")
+                                    # Wenn spieler2 'None' oder leer ist, machen wir sicher einen Leerstring "" daraus
+                                    metadata["spieler2"] = metadata.get("spieler2") or "" 
+
+                                    # Fallback für alte Matches mit "Alarmanlage" auf der Konsole
+                                    if "default_feuerzeit" not in metadata:
+                                        fallback_wert = metadata.get("feuer", 10)
+                                        print(f"⚠️ HINWEIS (Match {match_id}): 'default_feuerzeit' fehlt. Nutze Fallback 'feuer' ({fallback_wert}s).")
+                                        metadata["default_feuerzeit"] = fallback_wert
+
+                                    # Originale Ladezeit sichern
+                                    lg = metadata.get("ladenGelb", 3)
+                                    new_lg = lg 
+                                    
+                                    # Smart-Speedups anwenden
+                                    if "(dev)" in programm_name:
+                                        metadata["vorbereiten"] = 1
+                                        metadata["ladenGelb"] = 1
+                                        new_lg = 1
+                                    else:
+                                        new_lg = min(lg, 3)
+                                        metadata["ladenGelb"] = new_lg
+
+                                    # =================================================================
+                                    # --- 4. INITIALISIERUNG & HISTORISCHE ZEITKAPSEL ---
+                                    # =================================================================
+                                    # Programm laden
+                                    yaml_lines.append(f"  - name: \"Programm {prog_index} laden: {base_programm_name}\"")
+                                    yaml_lines.append(f"    action: \"call_sm_method\"")
+                                    yaml_lines.append(f"    wert: [\"setProgramm\", {prog_index}]")
+                                    yaml_lines.append(f"    step_time: 300")
+                                    yaml_lines.append("")
+
+                                    # Replay Nummer setzen
+                                    replay_id_str = f"Rec\u200A{match_id}"
+                                    yaml_lines.append(f"  - name: \"Replay-ID setzen ({replay_id_str})\"")
+                                    yaml_lines.append(f"    action: \"call_sm_method\"")
+                                    yaml_lines.append(f"    wert: [\"set_replay_match\", \"{replay_id_str}\"]")
+                                    yaml_lines.append(f"    step_time: 250")
+                                    yaml_lines.append("")          
+
+                                    # --- DIE ALLGEMEINE SCHLEIFE FÜR ALLE PARAMETER ---
+                                    sync_params = {
+                                        "spieler": "Spieler 1",
+                                        "spieler2": "Spieler 2",
+                                        "achtung": "Achtung-Zeit",
+                                        "default_feuerzeit": "Feuer-Zeit (Startwert)",
+                                        "vorbereiten": "Vorbereitungs-Zeit (inkl. Speedup)",
+                                        "ladenGelb": "Lade-Zeit Gelb (inkl. Speedup)",
+                                        "wiederholungen": "Wiederholungen"
+                                    }
+
+                                    for key, label in sync_params.items():
+                                        wert = metadata.get(key)
+                                        if wert is not None:
+                                            yaml_lines.append(f"  - name: \"Wert setzen: {label} ({wert})\"")
+                                            yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                            
+                                            # Trick: 'default_feuerzeit' wird im StateManager auf 'feuer' gemappt
+                                            ziel_attribut = "feuer" if key == "default_feuerzeit" else key
+                                            
+                                            # YAML-Formatierung: Strings brauchen Anführungszeichen, Zahlen nicht!
+                                            wert_str = f'"{wert}"' if isinstance(wert, str) else wert
+                                            
+                                            yaml_lines.append(f"    wert: [\"{ziel_attribut}\", {wert_str}]")
+                                            yaml_lines.append(f"    step_time: 10")
+                                            yaml_lines.append("")
+
+                                    # MODIFIZIERT TAG ENTFERNEN
+                                    yaml_lines.append(f"  - name: \"Modifiziert-Tag entfernen\"")
+                                    yaml_lines.append(f"    action: \"remove_modifiziert_tag\"")
+                                    yaml_lines.append(f"    step_time: 10")        
+                                    yaml_lines.append("")
+
+                                    # Countdown starten
+                                    yaml_lines.append(f"  - name: \"Countdown starten\"")
+                                    yaml_lines.append(f"    action: \"start_countdown\"")
+                                    yaml_lines.append(f"    step_time: 500")
+                                    yaml_lines.append("")
+
+                                    # =================================================================
+                                    # --- 5. NEUE MATCH TIMELINE VERARBEITUNG (Single-Pass Parser) ---
+                                    # =================================================================
+                                    last_t_orig_ms = 0
+                                    current_state = ""
+                                    accumulated_delay_ms = 0
+                                    phase_t_orig_ms = 0 # NEU: Stoppuhr für die aktuelle Phase
+                                    
+                                    lg_safe = max(1, lg)
+
+                                    for ev in timeline:
+                                        action_type = ev.get('a', '')
+                                        t_orig_ms = int(ev.get('t', 0.0) * 1000)
+                                        z = max(0, ev.get('z', -1))
+                                        m = ev.get('m', '')
+                                        
+                                        delta_orig_ms = max(0, t_orig_ms - last_t_orig_ms)
+                                        delta_new_ms = delta_orig_ms # Standardmäßig 1:1
+                                        
+                                        # --- DIE GENIALE 2-SEKUNDEN-LOGIK ---
+                                        if current_state == "LADEN" and lg_safe > new_lg:
+                                            next_phase_t_orig_ms = phase_t_orig_ms + delta_orig_ms
+                                            
+                                            def map_laden_time(t_ms):
+                                                if new_lg <= 2: 
+                                                    return t_ms * (new_lg / lg_safe)
+                                                
+                                                t_uncomp = 2000 
+                                                if t_ms <= t_uncomp:
+                                                    return float(t_ms)
+                                                else:
+                                                    ratio = (new_lg * 1000 - t_uncomp) / max(1, (lg_safe * 1000 - t_uncomp))
+                                                    return t_uncomp + (t_ms - t_uncomp) * ratio
+                                            
+                                            mapped_start = map_laden_time(phase_t_orig_ms)
+                                            mapped_end = map_laden_time(next_phase_t_orig_ms)
+                                            
+                                            delta_new_ms = int(mapped_end - mapped_start)
+                                            phase_t_orig_ms = next_phase_t_orig_ms
+                                        elif current_state == "LADEN":
+                                            phase_t_orig_ms += delta_orig_ms
+                                        
+                                        if action_type in ["state_change", "feuer_start", "zyklus_start"]:
+                                            accumulated_delay_ms += delta_new_ms
+                                            current_state = m
+                                            phase_t_orig_ms = 0 
+                                            
+                                            if m == "FEUER":
+                                                w_init = ev.get('w', [])
+                                                if w_init and (is_kaenguru or is_zufall):
+                                                    yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
+                                                    yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                    yaml_lines.append(f"    wert: [{w_init}]") 
+                                                    yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
+                                                    yaml_lines.append("")
+                                                    accumulated_delay_ms = 0 
+                                                    time_debt_ms += 50
+                                                    
+                                        elif action_type in ["shoot", "anulliere_zyklus"]:
+                                            delta_new_ms = delta_new_ms + accumulated_delay_ms
+                                            accumulated_delay_ms = 0 
+                                            delta_new_ms = max(50, delta_new_ms)
+
+                                            if time_debt_ms > 0:
+                                                abbau_debt = min(delta_new_ms, time_debt_ms) 
+                                                delta_new_ms -= abbau_debt         
+                                                time_debt_ms -= abbau_debt 
+
+                                            if action_type == "shoot":
+                                                wert = ev.get('v', 0)
+                                                yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
+                                                yaml_lines.append(f"    action: \"shoot\"")
+                                                yaml_lines.append(f"    wert: {wert}")
+                                                yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                                yaml_lines.append("")
+                                                
+                                                w_historisch = ev.get('w', [])
+                                                if w_historisch and is_kaenguru:
+                                                    yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
+                                                    yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                    yaml_lines.append(f"    wert: [{w_historisch}]")
+                                                    yaml_lines.append(f"    step_time: 0")
+                                                    yaml_lines.append("")
+                                                    
+                                            elif action_type == "anulliere_zyklus":
+                                                p_idx = ev.get('p', 0)
+                                                yaml_lines.append(f"  - name: \"VAR-Eingriff: Annulliere Zyklus für Spieler {p_idx} (Zyklus {z})\"")
+                                                yaml_lines.append(f"    action: \"anulliere_zyklus\"")
+                                                yaml_lines.append(f"    wert: {p_idx}")
+                                                yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                                yaml_lines.append("")
+
+                                            aktion_text = f"Schuss auf {wert}" if action_type == "shoot" else "VAR-Eingriff"
+                                            yaml_lines.append(f"  - name: \"Prüfe Status nach {aktion_text}\"")
+                                            yaml_lines.append(f"    actual_attr: \"get_state\"")
+                                            yaml_lines.append(f"    expected: '{m}'")
+                                            yaml_lines.append(f"    step_time: 10")  
+                                            yaml_lines.append("")
+                                            time_debt_ms += 10
+                                            
+                                        last_t_orig_ms = t_orig_ms
+
+                                    yaml_lines.append(f"  - name: \"GUI schließen\"")
+                                    yaml_lines.append(f"    action: \"close_gui\"")
+                                    yaml_lines.append(f"    step_time: 20000")
+                                    yaml_lines.append("")
+
+                                    # --- IN DATEI SPEICHERN ---
+                                    export_dir = "./savegames/replays"
+                                    os.makedirs(export_dir, exist_ok=True)
+                                    yaml_filename = os.path.join(export_dir, f"REPLAY_MATCH{match_id:06d}.yaml")
+
+                                    with open(yaml_filename, 'w', encoding='utf-8') as f:
+                                        f.write("\n".join(yaml_lines))
+                                        
+                                    print("Export erfolgreich:", f"Replay exportiert nach: {yaml_filename}")
+                                    
+                            except Exception as e:
+                                from tkinter import messagebox
+                                messagebox.showerror("Fehler", f"Fehler beim Exportieren:\n{e}")
+                        else:
+                            from tkinter import messagebox
+                            messagebox.showwarning("Nicht gefunden", f"Kein Detail-Log für Match {match_id} gefunden.")
+
+    def play_replay(self):
+        import subprocess
+        import sys
+        
+        selected_items = self.tree.selection()
+        if not selected_items:
+            return
+            
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            
+            for entry in self.highscore_manager.data:
+                if entry["timestamp"] == values[5]:
+                    match_id = entry.get("match_id")
+                    if match_id:
+                        yaml_filename = os.path.join("savegames", "replays", f"REPLAY_MATCH{match_id:06d}.yaml")
+                        
+                        if os.path.exists(yaml_filename):
+                            print(f"Starte Roboter für {yaml_filename}...")
+                            subprocess.Popen([sys.executable, "tests/test_ReplayRobot.py", yaml_filename])
+                        else:
+                            from tkinter import messagebox
+                            messagebox.showwarning("Fehlendes Replay", 
+                                f"Es wurde noch kein YAML für Match {match_id} exportiert.\n"
+                                "Bitte klicke zuerst auf 'Export Replay'.")
+                    break
+
+    def save_score(self):
         SD = self.SDeluebs
         highscore_entry = {
             "spieler": SD.SMobjekt.spieler.get(),
@@ -965,40 +790,34 @@ class HighscoreDeluebs:
 
     def load_scores(self):
         self.highscore_manager.load_highscores()
-        #for entry in self.highscore_manager.data:
-        #    print(entry)
 
     def save_match(self, match_timeline, highscore_entry):
         """Speichert den Event-Log zusammen mit den Metadaten"""
         try:
-            # Match-ID frühzeitig auslesen (für Dateinamen und Print-Ausgabe)
             match_id = self.SDeluebs.SMobjekt.match_id
-            # Event-Log als separate Datei speichern (nur wenn Events existieren)
             if match_timeline:
                 os.makedirs(os.path.join("savegames", "logs"), exist_ok=True)
                 log_dateiname = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
-                # --- NEU: Die "Zwei-Zimmer-Wohnung" (Wrapper) bauen ---
+                
                 match_data = {
                     "metadata": highscore_entry,
                     "timeline": match_timeline
                 }
-                # 1. JSON als formatierten String erzeugen (jetzt mit match_data!)
+                
                 json_str = json.dumps(match_data, indent=2)
-                # 2. Hilfsfunktion für den Regex-Ersetzer
+                
                 def collapse_arrays(match):
-                    # Alle Zeilenumbrüche und doppelten Leerzeichen in der Liste entfernen
                     collapsed = re.sub(r'\s+', ' ', match.group(0))
-                    # Optik verbessern: "[ 0, -1 ]" -> "[0, -1]"
                     return collapsed.replace('[ ', '[').replace(' ]', ']')
-                # 3. Sucht alle Listen [...], die nur aus Zahlen, Kommas, Minus und Punkten bestehen
+                
                 json_str = re.sub(r'\[[\s\d\.,\-]*\]', collapse_arrays, json_str)
-                # 4. Den optimierten String in die Datei schreiben
+                
                 with open(log_dateiname, "w", encoding="utf-8") as f:
                     f.write(json_str)
             print(f"Match {match_id} (Event-Log) erfolgreich gespeichert!")
         except Exception as e:
             print(f"Fehler beim Speichern der Match-Daten: {e}")
-
+            
 
 
 class HighscoreManager:
