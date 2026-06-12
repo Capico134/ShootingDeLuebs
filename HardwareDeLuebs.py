@@ -64,12 +64,16 @@ class Player:
     def switch_jaeger(self):
         self.is_jaeger = not self.is_jaeger #Die Jäger wechseln sich ab    
 
-def set_punkte(player: Player, welcherSchuss: int, feuer: int, referenzzeit: float, key: int, multiplier: int = 1):
-    player.treffer[welcherSchuss]=key
-    restzeit = max ( round((feuer - (time.monotonic() - referenzzeit)), 3) , 0 )
+def set_punkte(player: Player, welcherSchuss: int, feuer: int, referenzzeit: float, key: int, multiplier: int = 1, calc_speed: bool = True):
+    player.treffer[welcherSchuss] = key
+    restzeit = max(round((feuer - (time.monotonic() - referenzzeit)), 3), 0)
     player.restzeit_zyklus[welcherSchuss] = restzeit
     player.punkte_zyklus = player.punkte_zyklus + multiplier 
-    player.speedpunkte_zyklus = player.speedpunkte_zyklus + (restzeit/feuer/5) * multiplier
+    # --- NEU: Speedpunkte nur addieren, wenn calc_speed True ist ---
+    if calc_speed:
+        player.speedpunkte_zyklus = player.speedpunkte_zyklus + (restzeit/feuer/5) * multiplier
+    else:
+        pass
 
 class Klappscheibe:
    
@@ -328,7 +332,15 @@ class Klappscheibe:
                 player = self.players[player_index]
                 #print(f"Name: {player.name.get()} player_index: {player_index} ziel: {ziel} index: {index}")
                 welcherSchuss = self.welcherSchuss(player.treffer)
-                set_punkte(player, welcherSchuss, self.SM.feuer.get(), self.ReferenzZeit, index, multiplier)
+                set_punkte(
+                    player, 
+                    welcherSchuss, 
+                    self.SM.feuer.get(), 
+                    self.ReferenzZeit, 
+                    index, 
+                    multiplier, 
+                    calc_speed=False
+                )
    
     def set_treffer_zufall(self, key: int):
         player = self.players[0]
