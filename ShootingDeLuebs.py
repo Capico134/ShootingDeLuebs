@@ -406,6 +406,8 @@ class ShootingDeluebs:
 
     
     def key_handler(self, event=None):
+        # --- DER WAHRHEITS-TEST ---
+        #print(f"DEBUG-TASTE: {event.keysym}")
         # --- NEU: Der Eingabefeld-Schutzschild ---
         # Wenn der Cursor in einem Text- oder Entry-Feld steht, ignoriere alle globalen Shortcuts!
         if event.widget.winfo_class() in ('Entry', 'TEntry', 'Text'):
@@ -422,6 +424,14 @@ class ShootingDeluebs:
                     else:
                         # Nur Fx gedrückt
                         self.SMobjekt.setProgramm(f_num - 1)  # z.B. F1 → 0, F2 → 1, ...
+                    
+                    # --- NEU: ELA-FIX FÜR WINDOWS F10 BLOCKADE ---
+                    # Sobald F10 (oder Shift+F10) verarbeitet wurde, brechen wir hier ab,
+                    # damit Windows das Event NIEMALS zu Gesicht bekommt!
+                    if f_num == 10:
+                        return 'break'
+                    # ----------------------------------------------
+                        
             except ValueError:
                 pass
         if event.keysym=='Control_L' and self.SMobjekt.stand==-1: 

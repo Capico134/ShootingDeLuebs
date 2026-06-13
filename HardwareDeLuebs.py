@@ -301,6 +301,12 @@ class Klappscheibe:
                     self.ziel_wahl[2] = self.ziel_wahl[key]
                     if self.ziel_wahl[2] == 1: self.SetLED(2, True)
                     if self.ziel_wahl[2] == 2: self.SetBlinking(2, True) 
+
+                # Ganz am Ende der Funktion (nachdem alle Treffer und die Mitte verarbeitet wurden):
+                # Hier jagen wir das finale Update durch für den "normalen" Treffer ohne Bonus!
+                self.transfer_punkte_wechsel()
+                self.append_event_snapshot(f"Treffer Wechsel")
+                
                 #Winner-Sound:
                 if self.SM.ton.get() == 1 and all(ziel == self.ziel_wahl[0] for ziel in self.ziel_wahl):
                     self.SDeluebs.sound_win.play()
@@ -323,14 +329,24 @@ class Klappscheibe:
         return None
     
     def transfer_punkte_wechsel(self):
-        multiplier=1
-        if self.SM.zyklus.get()==self.SM.wiederholungen.get(): multiplier=2
-        #print(self.SM.zyklus.get())
+        # --- ELA-FIX: Vor dem Scannen setzen wir die Zyklus-Werte komplett zurück.
+        # Das macht diese Funktion atomar und verhindert das explodieren der Punkte!
+        for player in self.players:
+            player.punkte_zyklus = 0
+            # Wir leeren auch die Trefferschablonen für diesen Zyklus,
+            # damit welcherSchuss() immer wieder sauber bei Index 0 anfängt.
+            player.treffer = [-1] * len(player.treffer)
+            player.restzeit_zyklus = [0.0] * len(player.restzeit_zyklus)
+
+        multiplier = 1
+        if self.SM.zyklus.get() == self.SM.wiederholungen.get(): 
+            multiplier = 2
+            
         for index, ziel in enumerate(self.ziel_wahl):
-            if ziel>0:
-                player_index = (3-ziel)-1
+            if ziel > 0:
+                player_index = (3 - ziel) - 1
                 player = self.players[player_index]
-                #print(f"Name: {player.name.get()} player_index: {player_index} ziel: {ziel} index: {index}")
+                
                 welcherSchuss = self.welcherSchuss(player.treffer)
                 set_punkte(
                     player, 
@@ -339,7 +355,7 @@ class Klappscheibe:
                     self.ReferenzZeit, 
                     index, 
                     multiplier, 
-                    calc_speed=False
+                    calc_speed=False # Im Wechselmodus zählt nur der Endstand, kein Speed!
                 )
    
     def set_treffer_zufall(self, key: int):
@@ -621,10 +637,12 @@ class Klappscheibe:
             "tref": time.monotonic() - self.ReferenzZeit, # Spielzeit nach Feuerstart
             "m": self.SM.get_state().name,
             "a": event_type,
-            "w": list(self.ziel_wahl),
+            "w": list(self.ziel_wahl), # w war bereits vorhanden
         }
+        
         if value is not None: snapshot["v"] = value
         if player_idx is not None: snapshot["p"] = player_idx
+        
         # Spieler-Stats hinzufügen (kurze Keys für JSON-Sparen)
         for i, p in enumerate(self.players):
             prefix = f"p{i+1}_"
@@ -635,16 +653,15 @@ class Klappscheibe:
                 f"{prefix}pz":  p.punkte_zyklus,
                 f"{prefix}spz": p.speedpunkte_zyklus,
                 f"{prefix}rz":  list(p.restzeit_zyklus),
-                f"{prefix}ij":  1 if p.is_jaeger else 0 # 1/0 spart Platz gegenüber true/false
+                f"{prefix}ij":  1 if p.is_jaeger else 0 # 1/0 spart Platz
             })
+            
         self.match_timeline.append(snapshot)    
+        
         # Event in temporärer Datei ablegen
         try:
-            #os.makedirs(os.path.dirname(self.SM.LIVE_PATH), exist_ok=True)
             # Datei atomar überschreiben
             with open(self.SM.LIVE_PATH, "w") as f:
-                # WICHTIG: indent=4 macht die Zeilenumbrüche und Einrückungen
-                # ensure_ascii=False sorgt dafür, dass Umlaute (ü) lesbar bleiben
                 json.dump(self.match_timeline, f, indent=4, ensure_ascii=False) 
         except Exception as e:
             print(f"RAM-Disk Fehler: {e}")

@@ -657,7 +657,7 @@ class StateManager:
             self.reihe.set(0)
             self.jaeger_modus.set(0)
             self.kaenguru_modus.set(0)
-        #Wenn Gegner-Modus aktiviert wird, Reihe abschalten
+        #Wenn Gegner-Modus aktiviert wird: Feld für Spielernamen anzeigen (früher: Reihe abschalten)
         if name=='gegner_modus' and self.gegner_modus.get()==1:
             #self.reihe.set(0)
             self.SDeluebs.entryspieler2.place(x=715, y=960-40, width=300, height=80)
@@ -667,7 +667,7 @@ class StateManager:
             self.reihe.set(0)
             self.zufall.set(0)       
             self.kaenguru_modus.set(0)    
-            self.SDeluebs.entryspieler2.place(x=715, y=960-40, width=300, height=80) #braucht man das hier?
+            self.SDeluebs.entryspieler2.place(x=715, y=960-40, width=300, height=80) #braucht man das hier? AW: 13-06-2026 Besser drin lassen!
         #Wenn Gegner ausgeschaltet wird Jägermodus abschalten und Spieler2-Anzeige entfernen
         if (name=='gegner_modus' and self.gegner_modus.get()==0): #or name=='Jäger')
             self.SDeluebs.entryspieler2.place_forget()

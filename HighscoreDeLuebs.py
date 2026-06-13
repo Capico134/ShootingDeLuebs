@@ -363,6 +363,13 @@ class HighscoreDeluebs:
                                     tref = f"{ev.get('tref', 0):>6.2f}s"
                                     zyk = ev.get('z', 0)
                                 
+                                    # --- NEU: ELA-Filter für das Live-Polling! ---
+                                    # Diese Events verstecken wir im Text-Log, da sie 
+                                    # nur für die flüssige Beamer-Animation gedacht sind.
+                                    if action == "Treffer Wechsel":
+                                        continue
+                                    # ---------------------------------------------
+
                                     if action == "state_change":
                                         if m == "FEUER":
                                             if zyk > 1:
@@ -604,15 +611,38 @@ class HighscoreDeluebs:
                                     last_t_orig_ms = 0
                                     current_state = ""
                                     accumulated_delay_ms = 0
-                                    phase_t_orig_ms = 0 # NEU: Stoppuhr für die aktuelle Phase
+                                    phase_t_orig_ms = 0 
                                     
                                     lg_safe = max(1, lg)
+
+                                    # --- ELA FIX: Wir syncen den Jäger nur EIN EINZIGES MAL am Start! ---
+                                    jaeger_initialisiert = False
 
                                     for ev in timeline:
                                         action_type = ev.get('a', '')
                                         t_orig_ms = int(ev.get('t', 0.0) * 1000)
                                         z = max(0, ev.get('z', -1))
                                         m = ev.get('m', '')
+                                        
+                                        # --- Start-Aufstellung setzen und dann die Engine machen lassen ---
+                                        if not jaeger_initialisiert:
+                                            p1_ij = ev.get('p1_ij')
+                                            p2_ij = ev.get('p2_ij')
+                                            if p1_ij is not None and p2_ij is not None:
+                                                yaml_lines.append(f"  - name: \"Start-Rolle S1 (Sync)\"")
+                                                yaml_lines.append(f"    action: \"set_is_jaeger\"")
+                                                yaml_lines.append(f"    wert: [0, {p1_ij}]")
+                                                yaml_lines.append(f"    step_time: 0") 
+                                                yaml_lines.append("")
+                                                
+                                                yaml_lines.append(f"  - name: \"Start-Rolle S2 (Sync)\"")
+                                                yaml_lines.append(f"    action: \"set_is_jaeger\"")
+                                                yaml_lines.append(f"    wert: [1, {p2_ij}]")
+                                                yaml_lines.append(f"    step_time: 0") 
+                                                yaml_lines.append("")
+                                                
+                                                jaeger_initialisiert = True
+                                        # ----------------------------------------------
                                         
                                         delta_orig_ms = max(0, t_orig_ms - last_t_orig_ms)
                                         delta_new_ms = delta_orig_ms # Standardmäßig 1:1

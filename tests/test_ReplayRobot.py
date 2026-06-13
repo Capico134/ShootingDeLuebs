@@ -213,6 +213,19 @@ class TestShootingDeLuebsGUI(unittest.TestCase):
         """
         self.app.KSobjekt.set_ziel_wahl_replay(w_liste)
 
+    # --- NEU: Jäger-Rolle für das Replay umschalten ---
+    def set_is_jaeger(self, player_idx: int, is_jaeger_int: int):
+        """Setzt den Jäger-Status für den jeweiligen Spieler im Replay."""
+        status_bool = bool(is_jaeger_int)
+        self.app.KSobjekt.players[player_idx].is_jaeger = status_bool
+        
+        # --- ELA-TWEAK: Konsolen-Spam verhindern ---
+        # Wir loggen den Wechsel nur, wenn der Jäger-Modus auch wirklich aktiv ist.
+        # Im Hintergrund wird die Variable aber trotzdem immer sicher synchronisiert!
+        if self.app.SMobjekt.jaeger_modus.get() == 1:
+            rolle = "JÄGER 🐺" if status_bool else "GEJAGTER 🏃"
+            print(f"🔫 Spieler {player_idx + 1} ist nun: {rolle}")
+
     def remove_modifiziert_tag(self):
         """Entfernt das Modifiziert-Tag sicher aus dem StateManager."""
         try:
