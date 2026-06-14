@@ -411,7 +411,9 @@ class ShootingDeluebs:
         # --- NEU: Der Eingabefeld-Schutzschild ---
         # Wenn der Cursor in einem Text- oder Entry-Feld steht, ignoriere alle globalen Shortcuts!
         if event.widget.winfo_class() in ('Entry', 'TEntry', 'Text'):
-            return        
+            # ...erlauben wir trotzdem die universellen Steuerungstasten Strg und Esc!
+            if event.keysym not in ('Control_L', 'Escape'):
+                return
             
         if event and event.keysym.startswith('F'):
             try:

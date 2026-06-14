@@ -1,4 +1,5 @@
 import json #Highscore
+import time # neu für die aktuelle Zeit für die Highscore
 import datetime as dt #Highscore
 import tkinter as tk
 from tkinter import ttk #Highscore
@@ -779,9 +780,15 @@ class HighscoreDeluebs:
 
     def save_score(self):
         SD = self.SDeluebs
+        # Echte Uhrzeit berechnen
+        dauer_sekunden = time.monotonic() - SD.SMobjekt.laufzeit
+        jetzt = dt.datetime.now()
+        start_zeit_obj = jetzt - dt.timedelta(seconds=dauer_sekunden)
+        start_zeit_str = start_zeit_obj.strftime("%H:%M:%S")        
         highscore_entry = {
             "spieler": SD.SMobjekt.spieler.get(),
             "spieler2": SD.SMobjekt.spieler2.get() if SD.SMobjekt.gegner_modus.get() == 1 else None,
+            "start_zeit": start_zeit_str,
             "wiederholungen": SD.SMobjekt.wiederholungen.get(),
             "zyklus": SD.SMobjekt.zyklus.get(),
             "vorbereiten": SD.SMobjekt.vorbereiten.get(),

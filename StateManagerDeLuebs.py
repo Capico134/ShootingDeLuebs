@@ -699,7 +699,8 @@ class StateManager:
                 except ValueError:
                     pass # Falls mal eine Datei "MATCH_kaputt.json" heißt, ignorieren wir sie
         if self.SDeluebs.HSobjekt.highscore_manager.data:
-            highest_json_id = max([eintrag.get("match_id", 0) for eintrag in self.SDeluebs.HSobjekt.highscore_manager.data])
+            # Das int() sorgt dafür, dass auch Strings wie "309" sicher als Zahl verglichen werden
+            highest_json_id = max([int(eintrag.get("match_id", 0) or 0) for eintrag in self.SDeluebs.HSobjekt.highscore_manager.data])
             if highest_json_id > highest_id:
                 highest_id = highest_json_id
         return highest_id + 1
