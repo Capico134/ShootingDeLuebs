@@ -305,7 +305,7 @@ class Klappscheibe:
                 # Ganz am Ende der Funktion (nachdem alle Treffer und die Mitte verarbeitet wurden):
                 # Hier jagen wir das finale Update durch für den "normalen" Treffer ohne Bonus!
                 self.transfer_punkte_wechsel()
-                self.append_event_snapshot(f"Treffer Wechsel")
+                #self.append_event_snapshot(f"Treffer Wechsel")
                 
                 #Winner-Sound:
                 if self.SM.ton.get() == 1 and all(ziel == self.ziel_wahl[0] for ziel in self.ziel_wahl):

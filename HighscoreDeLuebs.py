@@ -18,7 +18,7 @@ class HighscoreDeluebs:
         self.anzahl_eintraege = tk.IntVar(value=0)
         
         # --- ELA-Tipp 3: Zentrale Spaltendefinition (Single Source of Truth) ---
-        self.columns = ("Match-ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel")
+        self.columns = ("ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel")
     
     def customize_style(self):
         style = ttk.Style()
@@ -91,7 +91,7 @@ class HighscoreDeluebs:
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.tree.yview)
         
-        self.tree.column("Match-ID", width=60, anchor="center", stretch=False)
+        self.tree.column("ID", width=60, anchor="center", stretch=False)
         self.tree.column("Spieler", width=260)
         self.tree.column("Modus", width=400, stretch=True)
         self.tree.column("Punkte Durchgang", width=30, stretch=True)
@@ -363,10 +363,8 @@ class HighscoreDeluebs:
                                     tref = f"{ev.get('tref', 0):>6.2f}s"
                                     zyk = ev.get('z', 0)
                                 
-                                    # --- NEU: ELA-Filter für das Live-Polling! ---
-                                    # Diese Events verstecken wir im Text-Log, da sie 
-                                    # nur für die flüssige Beamer-Animation gedacht sind.
-                                    if action == "Treffer Wechsel":
+                                    # Diese Events verstecken wir im Text-Log # ACHTUNG EIGENTLICH AKTUELL ÜBERFLÜSSIG
+                                    if action == "Treffer Wechsel": 
                                         continue
                                     # ---------------------------------------------
 
