@@ -647,6 +647,7 @@ class Klappscheibe:
         for i, p in enumerate(self.players):
             prefix = f"p{i+1}_"
             snapshot.update({
+                f"{prefix}name": p.name.get(),
                 f"{prefix}pd":  p.punkte_durchgang,
                 f"{prefix}spd": p.speedpunkte_durchgang,
                 f"{prefix}t":   list(p.treffer), # Kopie der Liste!

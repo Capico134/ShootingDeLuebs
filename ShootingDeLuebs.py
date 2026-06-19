@@ -406,16 +406,14 @@ class ShootingDeluebs:
 
     
     def key_handler(self, event=None):
-        # --- DER WAHRHEITS-TEST ---
-        #print(f"DEBUG-TASTE: {event.keysym}")
-        # --- NEU: Der Eingabefeld-Schutzschild ---
-        # Wenn der Cursor in einem Text- oder Entry-Feld steht, ignoriere alle globalen Shortcuts!
-        if event.widget.winfo_class() in ('Entry', 'TEntry', 'Text'):
-            # ...erlauben wir trotzdem die universellen Steuerungstasten Strg und Esc!
-            if event.keysym not in ('Control_L', 'Escape'):
-                return
-            
-        if event and event.keysym.startswith('F'):
+        if not event: return
+        
+        # ==========================================================
+        # 1. GLOBALE HOTKEYS (Immer aktiv, auch in Textfeldern!)
+        # ==========================================================
+        
+        # A) F-Tasten (Programme umschalten)
+        if event.keysym.startswith('F'):
             try:
                 f_num = int(event.keysym[1:])
                 if 1 <= f_num <= 12:
@@ -427,52 +425,71 @@ class ShootingDeluebs:
                         # Nur Fx gedrückt
                         self.SMobjekt.setProgramm(f_num - 1)  # z.B. F1 → 0, F2 → 1, ...
                     
-                    # --- NEU: ELA-FIX FÜR WINDOWS F10 BLOCKADE ---
+                    # ELA-FIX FÜR WINDOWS F10 BLOCKADE
                     # Sobald F10 (oder Shift+F10) verarbeitet wurde, brechen wir hier ab,
                     # damit Windows das Event NIEMALS zu Gesicht bekommt!
                     if f_num == 10:
                         return 'break'
-                    # ----------------------------------------------
-                        
             except ValueError:
                 pass
-        if event.keysym=='Control_L' and self.SMobjekt.stand==-1: 
+
+        # B) Start-Taste (Strg Links)
+        if event.keysym == 'Control_L' and self.SMobjekt.stand == -1: 
             print("Start")
-            self.SMobjekt.buttonCountdownClick() #Standabfrage ist hier, da Knopf verschwindet und der Button aktiv bleibt
-        if event.keysym=='Escape': self.SMobjekt.buttonResetClick() #and not self.SMobjekt.stand==-1 #standabfrage ist in der Funktion
+            # --- NEU: Fokus sofort aus jedem Textfeld klauen! ---
+            self.root.focus_set()
+            # ----------------------------------------------------            
+            self.SMobjekt.buttonCountdownClick()
+
+        # C) Reset-Taste (Escape)
+        if event.keysym == 'Escape': 
+            self.SMobjekt.buttonResetClick()
+
+
+        # ==========================================================
+        # --- DER EINGABEFELD-SCHUTZSCHILD ---
+        # Ab hier: Hotkeys (Buchstaben), die NICHT feuern dürfen,
+        # wenn man gerade einen Namen in ein Textfeld eintippt!
+        # ==========================================================
+        if event.widget.winfo_class() in ('Entry', 'TEntry', 'Text'):
+            return 
+
+
+        # ==========================================================
+        # 2. LOKALE HOTKEYS (Nur aktiv, wenn KEIN Textfeld fokussiert ist)
+        # ==========================================================
         if event.keysym in ('t', 'T'):
             if not self.SMobjekt.has_tag(SMDeLuebs.Tag.MODIFIZIERT):
-                self.SMobjekt.system_update_laeuft=True
+                self.SMobjekt.system_update_laeuft = True
                 self.SMobjekt.ladenGelb.set(60)   
-                #self.SMobjekt.remove_tag(SMDeLuebs.Tag.MODIFIZIERT)
-                self.SMobjekt.system_update_laeuft=False
+                self.SMobjekt.system_update_laeuft = False
                 self.SMobjekt.add_tag(SMDeLuebs.Tag.ONEMIN)
-            else: self.SMobjekt.ladenGelb.set(60)              
+            else: 
+                self.SMobjekt.ladenGelb.set(60)              
             return 'break'            
+            
         if event.keysym in ('d', 'D'):
             print("DEV MODE: Fast-Forward aktiviert!")
-            self.SMobjekt.system_update_laeuft=True
+            self.SMobjekt.system_update_laeuft = True
             self.SMobjekt.vorbereiten.set(1)
             self.SMobjekt.ladenGelb.set(1)
-            if self.SMobjekt.survival_modus.get()==0: self.SMobjekt.wiederholungen.set(2)
-            # Tags aufräumen und DEV setzen
-            #self.SMobjekt.remove_tag(SMDeLuebs.Tag.MODIFIZIERT)
-            #self.SMobjekt.remove_tag(SMDeLuebs.Tag.ONEMIN)
-            self.SMobjekt.system_update_laeuft=False
+            if self.SMobjekt.survival_modus.get() == 0: 
+                self.SMobjekt.wiederholungen.set(2)
+            self.SMobjekt.system_update_laeuft = False
             self.SMobjekt.add_tag(SMDeLuebs.Tag.DEVELOPER)         
+            
         if event.keysym in ('s', 'S'):
             if not getattr(self.SMobjekt, 'champion_loop_laeuft', False):
                 print("Lade Meisterschaft Spieler (Loop gestartet)!")
                 self.SMobjekt.setChampionMatch()
             else:
                 print("Ignoriert: Meisterschafts-Loop läuft bereits!")
+                
         if event.keysym == 'less':
             self.KSobjekt.Anulliere_zyklus2durchgang(0)
+            
         if event.keysym == 'minus':
-            self.KSobjekt.Anulliere_zyklus2durchgang(1)            
-#        if event.keysym == 'S':
-#            print("Lade Meisterschaft Spieler!")
-#            self.SMobjekt.setChampionMatch()
+            self.KSobjekt.Anulliere_zyklus2durchgang(1)
         
 class ToolTip:
     def __init__(self, widget, text, delay=500):
