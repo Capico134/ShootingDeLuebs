@@ -117,6 +117,9 @@ class Klappscheibe:
         self.SDeluebs.tts.say('Gewinner ist '+name) 
 
     def init_zyklus(self): #Erstellen der ziel_wahl
+        for player in self.players: #Ich weiß es ist doppelt (weil es bei Reset_zyklus auch noch mal kommt). Es ist aber wichtig für das Live-Polling
+            player.reset_zyklus()        
+        
         anzahlZiele = 1 #Wenn kein sinvoller Wert bei scheibenServo angegeben ist, dann nur 1 Ziel.
         if self.SM.scheibenServo.get() > 0 and self.SM.scheibenServo.get() < 5: anzahlZiele = self.SM.scheibenServo.get()
         
