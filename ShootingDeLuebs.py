@@ -383,10 +383,6 @@ class ShootingDeluebs:
         self.root.update_idletasks() 
         #print(f"Dauer: {time.perf_counter() - start:.6f} Sekunden") ###Zeitmessung
 
-#UNÖTIGIGE AUFTEILUNG zwischen Hauptlabel und update_graphic   
-    def update_graphic(self):
-        self.update_hauptlabel() #enthält update_idletasks()
-
 
     def zeige_hilfe_fenster(self):
         hilfe_win = tk.Toplevel(self.root)
@@ -400,38 +396,67 @@ class ShootingDeluebs:
         titel = tk.Label(hilfe_win, text="Tastenkombinationen & Steuerung", font=("Arial", 24, "bold"), bg="gray90")
         titel.pack(pady=20)
 
-        # Ein Textfeld, das nur lesbar ist (state='disabled')
-        text_widget = tk.Text(hilfe_win, font=("Arial", 16), bg="white", wrap="word", padx=20, pady=20)
-        text_widget.pack(expand=True, fill="both", padx=30, pady=10)
+        text_frame = tk.Frame(hilfe_win, bg="gray90")
+        text_frame.pack(expand=True, fill="both", padx=30, pady=10)
 
-        hilfe_text = """
-ALLGEMEINE STEUERUNG
+        scrollbar = tk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        # ==========================================================
+        # --- NEU: tabs=("250", "left") zwingt \t exakt auf 250 Pixel ---
+        # ==========================================================
+        text_widget = tk.Text(text_frame, font=("Arial", 16), bg="white", wrap="word", padx=20, pady=20, yscrollcommand=scrollbar.set, tabs=("190", "left"))
+        text_widget.pack(side="left", expand=True, fill="both")
+        scrollbar.config(command=text_widget.yview)
+
+        # ==========================================================
+        # --- NEU: Alle Leerzeichen vor dem Doppelpunkt sind nun ein \t ---
+        # ==========================================================
+        hilfe_text = """ALLGEMEINE STEUERUNG
 -----------------------------------------
-• Linke Strg-Taste : Start - MATCH
-• Escape (Esc)     : Reset / Abbruch
-• Linksklick       : Nimmt den Fokus aus Textfeldern
+• Linke Strg-Taste\t: Start - MATCH
+• Escape (Esc)\t: Reset / Abbruch
+• Linksklick\t: Nimmt den Fokus aus Textfeldern
+
+OBERFLÄCHE & HIGHSCORES
+-----------------------------------------
+• Tooltips\t: Bewege die Maus über ein Element (oder halte es am Touchscreen gedrückt), um Erklärungen zu sehen.
+• Programmanzeige\t: Das große Feld mit dem Programmnamen unter der Statusanzeige (z.B. Sicherheit) ist ein Button!
+• Highscores\t: Ein Klick auf die Programmanzeige öffnet die Bestenliste. Hovern zeigt die Info zum Programm.
 
 PROGRAMMAUSWAHL (mit Tastatur)
 -----------------------------------------
-• F1 bis F12       : Lädt Programm 1 bis 12
-• Shift + F1-F12   : Lädt Programm 13 bis 24
+• F1 bis F12\t: Lädt Programm 1 bis 12
+• Shift + F1-F12\t: Lädt Programm 13 bis 24
 
 ENTWICKLER- UND SONDERFUNKTIONEN
 -----------------------------------------
-• Taste 'T'        : Ladezeit auf 1-Minute setzen
-• Taste 'D'        : Dev-Mode (Fast-Forward, schnelle Zyklen)
-• Taste 'S'        : Starte Loop, um die Spielernamen zu aktualisieren (Meisterschaft)
-• Taste '<'        : Annulliere aktuellen Zyklus (Spieler 1)
-• Taste '-'        : Annulliere aktuellen Zyklus (Spieler 2)
-"""
+• Taste 'T'\t: Ladezeit auf 1-Minute setzen
+• Taste 'D'\t: Dev-Mode (Fast-Forward, nur 2 Zyklen)
+• Taste 'S'\t: Starte Loop, um die Spielernamen zu aktualisieren (Meisterschaft)
+• Taste '<'\t: Annulliere aktuellen Zyklus (Spieler 1)
+• Taste '-'\t: Annulliere aktuellen Zyklus (Spieler 2)"""
+        
         text_widget.insert("1.0", hilfe_text)
-        text_widget.configure(state='disabled') # Verhindert, dass der Nutzer den Text ändert
+
+        # ==========================================================
+        # --- NEU: lmargin2 auf 265 Pixel gesetzt ---
+        # (250 Pixel für den Tab + ca. 15 Pixel für ": " = 265)
+        # So bricht der Text rechts bündig unter dem vorherigen Text um!
+        # ==========================================================
+        text_widget.tag_configure("bullet_indent", lmargin1=0, lmargin2=205)
+        
+        for i, line in enumerate(hilfe_text.split('\n')):
+            if line.startswith('•'):
+                text_widget.tag_add("bullet_indent", f"{i+1}.0", f"{i+1}.end")
+
+        # Schreibschutz wieder aktivieren
+        text_widget.configure(state='disabled') 
 
         schliessen_btn = tk.Button(hilfe_win, text="Schließen", font=("Arial", 20), bg="#FBD975", command=hilfe_win.destroy)
         schliessen_btn.pack(pady=20, ipadx=40, ipady=10)
 
     def zeige_programm_raster(self):
-        """Öffnet ein touch-freundliches Vollbild-Raster mit allen 24 Programmen."""
         raster_win = tk.Toplevel(self.root)
         raster_win.title("Programmauswahl")
         
