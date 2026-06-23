@@ -662,13 +662,24 @@ class Klappscheibe:
             
         self.match_timeline.append(snapshot)    
         
-        # Event in temporärer Datei ablegen
+        # Event in temporärer Datei ablegen und ATOMAR überschreiben
         try:
-            # Datei atomar überschreiben
-            with open(self.SM.LIVE_PATH, "w") as f:
+            # 1. Ein temporärer Dateipfad (z.B. live_match.json.tmp)
+            tmp_path = self.SM.LIVE_PATH + ".tmp"
+            
+            # 2. Wir schreiben in Ruhe das komplette JSON in die Temp-Datei.
+            # Windows kriegt davon nichts mit, es gibt also null Blockade-Gefahr!
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(self.match_timeline, f, indent=4, ensure_ascii=False) 
+                
+            # 3. Der magische Moment: Wir benennen die Temp-Datei um.
+            # Auf Linux ist os.replace atomar. Die alte Datei wird in einem 
+            # unteilbaren Wimpernschlag durch die neue ersetzt.
+            import os
+            os.replace(tmp_path, self.SM.LIVE_PATH)
+            
         except Exception as e:
-            print(f"RAM-Disk Fehler: {e}")
+            print(f"⚠️ RAM-Disk / Atomic-Write Fehler: {e}")
         
     #return snapshot
 

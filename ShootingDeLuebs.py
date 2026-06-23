@@ -110,6 +110,8 @@ class ShootingDeluebs:
         
         #Widgets
         self.create_widgets()
+        self.root.unbind_all("<Key-F10>")
+        self.root.unbind_all("<Shift-Key-F10>")
         self.root.bind_all('<Key>', self.key_handler)
         #self.root.bind_all('<Tab>', self.key_handler) # <--- NEU: Tab explizit fangen!
  
@@ -188,12 +190,40 @@ class ShootingDeluebs:
         self.buttonProgramm.place(x=600, y=215, width=720, height=52)
         ToolTip(self.buttonProgramm, lambda: self.SMobjekt.programm_info.get())
         
+        self.buttonHilfe = tk.Button(master=self.root, text='Hilfe / Hotkeys', bg='lightblue', command=self.zeige_hilfe_fenster, font=('Arial', 20))
+        self.buttonHilfe.place(x=1340, y=215, width=280, height=52)        
+        
+        # --- PROGRAMM-BUTTONS (0 bis 7) ---
         self.pgmButtons = []
-        for i in range(0, 9):
+        for i in range(0, 8):  # Nur noch 8 normale Knöpfe (0 bis 7)
             self.pgmButtons.append(tk.Button(master=self.root, text=str(i), bg='#FBD975', command=lambda i=i: self.SMobjekt.setProgramm(i), font=('Arial',12)) )
             x = 1085 + ((i) % 3) * 275
             y =  920-95-30 + ((i) // 3) * 70
             self.pgmButtons[i].place(x=x, y=y, width=250, height=60)        
+
+        # Der 9. Button (an Position von Index 8) wird der "Alle Programme..." Touch-Button
+        self.buttonAlleProgramme = tk.Button(master=self.root, text='Alle Programme...', bg='#FBD975', command=self.zeige_programm_raster, font=('Arial', 12, 'bold'))
+        x = 1085 + (8 % 3) * 275
+        y = 920-95-30 + (8 // 3) * 70
+        self.buttonAlleProgramme.place(x=x, y=y, width=250, height=60)
+
+        # --- CSV EINLESEN & BACKUP FÜR GRID ---
+        self.programm_namen = []  # Hier speichern wir ALLE Namen für das große Touch-Grid
+        
+        with open('Programme.csv', mode='r', encoding='utf-8') as file:
+            csvFile = csv.reader(file)
+            csvLine = next(csvFile)
+            self.trimZero = [float(csvLine[0]),float(csvLine[1]),float(csvLine[2]),float(csvLine[4]),float(csvLine[4])]
+            next(csvFile)  # Kopfzeile überspringen
+            
+            for row in csvFile:
+                if row:
+                    self.programm_namen.append(row[0])
+
+        # Jetzt beschriften wir die 8 Hauptknöpfe mit den ersten 8 Einträgen aus der Liste
+        for idx, btn in enumerate(self.pgmButtons):
+            if idx < len(self.programm_namen):
+                btn.config(text=self.programm_namen[idx])
 
         #CSV einlesen
         with open('Programme.csv', mode ='r', encoding='utf-8') as file:
@@ -357,6 +387,116 @@ class ShootingDeluebs:
     def update_graphic(self):
         self.update_hauptlabel() #enthält update_idletasks()
 
+
+    def zeige_hilfe_fenster(self):
+        hilfe_win = tk.Toplevel(self.root)
+        hilfe_win.title("Hilfe & Tastenkombinationen")
+        hilfe_win.geometry("900x700")
+        hilfe_win.configure(bg="gray90")
+        # Macht das Fenster modal (blockiert das Hauptfenster, bis es geschlossen wird)
+        hilfe_win.transient(self.root)
+        hilfe_win.grab_set()
+
+        titel = tk.Label(hilfe_win, text="Tastenkombinationen & Steuerung", font=("Arial", 24, "bold"), bg="gray90")
+        titel.pack(pady=20)
+
+        # Ein Textfeld, das nur lesbar ist (state='disabled')
+        text_widget = tk.Text(hilfe_win, font=("Arial", 16), bg="white", wrap="word", padx=20, pady=20)
+        text_widget.pack(expand=True, fill="both", padx=30, pady=10)
+
+        hilfe_text = """
+ALLGEMEINE STEUERUNG
+-----------------------------------------
+• Linke Strg-Taste : Start - MATCH
+• Escape (Esc)     : Reset / Abbruch
+• Linksklick       : Nimmt den Fokus aus Textfeldern
+
+PROGRAMMAUSWAHL (mit Tastatur)
+-----------------------------------------
+• F1 bis F12       : Lädt Programm 1 bis 12
+• Shift + F1-F12   : Lädt Programm 13 bis 24
+
+ENTWICKLER- UND SONDERFUNKTIONEN
+-----------------------------------------
+• Taste 'T'        : Ladezeit auf 1-Minute setzen
+• Taste 'D'        : Dev-Mode (Fast-Forward, schnelle Zyklen)
+• Taste 'S'        : Starte Loop, um die Spielernamen zu aktualisieren (Meisterschaft)
+• Taste '<'        : Annulliere aktuellen Zyklus (Spieler 1)
+• Taste '-'        : Annulliere aktuellen Zyklus (Spieler 2)
+"""
+        text_widget.insert("1.0", hilfe_text)
+        text_widget.configure(state='disabled') # Verhindert, dass der Nutzer den Text ändert
+
+        schliessen_btn = tk.Button(hilfe_win, text="Schließen", font=("Arial", 20), bg="#FBD975", command=hilfe_win.destroy)
+        schliessen_btn.pack(pady=20, ipadx=40, ipady=10)
+
+    def zeige_programm_raster(self):
+        """Öffnet ein touch-freundliches Vollbild-Raster mit allen 24 Programmen."""
+        raster_win = tk.Toplevel(self.root)
+        raster_win.title("Programmauswahl")
+        
+        # Perfekt dimensioniert für Touchscreens (nahezu Vollbild auf dem Pi-Monitor)
+        raster_win.geometry("1500x950")
+        raster_win.configure(bg="gray15") # Edler, dunkler Hintergrund für guten Kontrast
+        raster_win.transient(self.root)
+        raster_win.grab_set()
+
+        # Große, gut lesbare Überschrift
+        titel = tk.Label(raster_win, text="Wähle ein Schießprogramm", font=("Arial", 26, "bold"), bg="gray15", fg="white")
+        titel.pack(pady=10)
+
+        # Container-Frame für die Kacheln
+        grid_frame = tk.Frame(raster_win, bg="gray15")
+        grid_frame.pack(expand=True, fill="both", padx=50, pady=10)
+
+        # Layout-Konfiguration: 4 Spalten x 6 Zeilen ergibt exakt 24 Programme
+        anz_spalten = 4
+        
+        for idx, name in enumerate(self.programm_namen):
+            if idx >= 48: break # Sicherheitsbremse bei mehr CSV-Einträgen
+            
+            row_idx = idx // anz_spalten
+            col_idx = idx % anz_spalten
+            
+            # --- NEUE LOGIK FÜR DIE BESCHRIFTUNG ---
+            if idx < 12:
+                # Programme 1 bis 12
+                btn_text = f"{name}\n(F{idx+1})"
+            elif idx < 24:
+                # Programme 13 bis 24
+                btn_text = f"{name}\n(Shift+F{idx-11})"
+            else:
+                # Ab Programm 25 gibt es keine Standard-Shortcuts mehr
+                btn_text = name 
+            # ---------------------------------------
+
+            # Die riesige Touch-Kachel
+            btn = tk.Button(
+                grid_frame, 
+                text=btn_text,  # Hier setzen wir jetzt unseren dynamischen Text ein
+                font=("Arial", 16, "bold"),
+                bg="#FBD975",
+                activebackground="darkorange",
+                borderwidth=2,
+                relief="raised",
+                # Beim Klick: Programm setzen und das Fenster sofort wieder schließen!
+                command=lambda idx=idx: [self.SMobjekt.setProgramm(idx), raster_win.destroy()]
+            )
+            # Dehnt die Buttons dank sticky='nsew' perfekt in ihre Grid-Zellen aus
+            btn.grid(row=row_idx, column=col_idx, padx=12, pady=12, sticky="nsew")
+
+        # Gewichtung definieren, damit alle Zeilen/Spalten exakt gleich groß skaliert werden
+        for i in range(8): # Jetzt 8 Zeilen statt 6
+            grid_frame.rowconfigure(i, weight=1)
+        for i in range(4): # Spalten bleiben bei 4
+            grid_frame.columnconfigure(i, weight=1)
+
+        # Großer Abbrechen-Button ganz unten, falls man sich verklickt hat
+        schliessen_btn = tk.Button(raster_win, text="Zurück zum Hauptmenü", font=("Arial", 22, "bold"), bg="gray35", fg="white", activebackground="gray50", command=raster_win.destroy)
+        schliessen_btn.pack(pady=25, ipadx=60, ipady=12)
+
+
+
     def say(self, text):
         def run():
             if self.system == "Linux":
@@ -435,8 +575,16 @@ class ShootingDeluebs:
 
         # B) Start-Taste (Strg Links)
         if event.keysym == 'Control_L' and self.SMobjekt.stand == -1: 
+            
+            # --- DER TREEVIEW-SCHUTZ ---
+            # Wenn man gerade in der Highscore-Tabelle ist, wollen wir
+            # Strg für den Multi-Select nutzen. Der Start wird hier ignoriert!
+            if getattr(event.widget, 'winfo_class', lambda: '')() == 'Treeview':
+                return 
+            # ---------------------------
+
             print("Start")
-            # --- NEU: Fokus sofort aus jedem Textfeld klauen! ---
+            # --- Fokus sofort aus jedem Textfeld klauen! ---
             self.root.focus_set()
             # ----------------------------------------------------            
             self.SMobjekt.buttonCountdownClick()
