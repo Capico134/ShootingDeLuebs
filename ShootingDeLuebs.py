@@ -383,6 +383,9 @@ class ShootingDeluebs:
         self.root.update_idletasks() 
         #print(f"Dauer: {time.perf_counter() - start:.6f} Sekunden") ###Zeitmessung
 
+    #UNÖTIGIGE AUFTEILUNG zwischen Hauptlabel und update_graphic   
+    def update_graphic(self):
+        self.update_hauptlabel() #enthält update_idletasks()
 
     def zeige_hilfe_fenster(self):
         hilfe_win = tk.Toplevel(self.root)
@@ -433,7 +436,7 @@ ENTWICKLER- UND SONDERFUNKTIONEN
 -----------------------------------------
 • Taste 'T'\t: Ladezeit auf 1-Minute setzen
 • Taste 'D'\t: Dev-Mode (Fast-Forward, nur 2 Zyklen)
-• Taste 'S'\t: Starte Loop, um die Spielernamen zu aktualisieren (Meisterschaft)
+• Taste 'S'\t: Starte Loop, um die Spielernamen automatisch zu aktualisieren in Verbindung mit Championship DeLübs
 • Taste '<'\t: Annulliere aktuellen Zyklus (Spieler 1)
 • Taste '-'\t: Annulliere aktuellen Zyklus (Spieler 2)"""
         
