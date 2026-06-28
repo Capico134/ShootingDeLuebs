@@ -412,6 +412,27 @@ class HighscoreDeluebs:
                                         line = f"{t} | {tref} | {zyk:^4} | {'VAR':<8} | {' ':^4} | {'Manuelle Korrektur':^18} | {p1_text:^18} | {p2_text:^18}\n"
                                         event_details += line
                                         last_action_was_state = False
+
+                                    elif action == "survival_update":
+                                        # Neue Feuerzeit aus 'v' holen (Fallback auf 'p' für ganz alte Logs)
+                                        feuer_neu = ev.get('v', ev.get('p', '-'))
+                                        
+                                        # Verwendete Zeit aus 'p' holen
+                                        used_time = ev.get('p', None)
+                                        
+                                        # Text formatieren
+                                        if used_time is not None and str(used_time) != str(feuer_neu):
+                                            # Reines ASCII '->' verwenden, da Tkinter '➔' breiter darstellt!
+                                            detail_text = f"{used_time}s -> {feuer_neu}s"
+                                        else:
+                                            detail_text = f"Feuerzeit: {feuer_neu}s"
+                                            
+                                        # Auf 18 Zeichen begrenzen, damit die Spalte nicht platzt
+                                        detail_text = detail_text[:18]
+                                        
+                                        line = f"{t} | {tref} | {zyk:^4} | {'SURVIVE':<8} | {' ':^4} | {detail_text:^18} | {' ':^18} | {' ':^18}\n"
+                                        event_details += line
+                                        last_action_was_state = False
                                         
                                     else:
                                         aktions_name = str(action)[:18] if action else "UNKNOWN"
@@ -611,6 +632,8 @@ class HighscoreDeluebs:
                                     current_state = ""
                                     accumulated_delay_ms = 0
                                     phase_t_orig_ms = 0 
+                                    # --- NEU ---
+                                    pending_survival_feuer = None
                                     
                                     lg_safe = max(1, lg)
 
@@ -670,6 +693,16 @@ class HighscoreDeluebs:
                                             phase_t_orig_ms += delta_orig_ms
                                         
                                         if action_type in ["state_change", "feuer_start", "zyklus_start"]:
+                                            # --- DER FIX: Survival-Sync NACH dem Zyklus erzwingen ---
+                                            if pending_survival_feuer is not None:
+                                                yaml_lines.append(f"  - name: \"Survival-Sync: Feuerzeit ueberschreiben ({pending_survival_feuer}s)\"")
+                                                yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                                yaml_lines.append(f"    wert: [\"feuer\", {pending_survival_feuer}]")
+                                                yaml_lines.append(f"    step_time: 10")
+                                                yaml_lines.append("")
+                                                pending_survival_feuer = None
+                                                time_debt_ms += 10
+                                            # --------------------------------------------------------
                                             accumulated_delay_ms += delta_new_ms
                                             current_state = m
                                             phase_t_orig_ms = 0 
@@ -719,6 +752,19 @@ class HighscoreDeluebs:
                                                 yaml_lines.append(f"    step_time: {delta_new_ms}")
                                                 yaml_lines.append("")
 
+                                        # =========================================================
+                                        # --- SURVIVAL SYNC FIX (Speichern statt sofort ausführen) ---
+                                        # =========================================================
+                                        elif action_type == "survival_update":
+                                            # Ein kleiner Trick, damit er sowohl dein altes Log (wo der 
+                                            # Wert in 'p' stand) als auch neue Logs (Wert in 'v') frisst:
+                                            val_v = ev.get('v')
+                                            feuer_neu = val_v if isinstance(val_v, (int, float)) else ev.get('p', 0)
+                                            
+                                            pending_survival_feuer = feuer_neu 
+                                            accumulated_delay_ms += delta_new_ms
+                                        # =========================================================
+
                                             aktion_text = f"Schuss auf {wert}" if action_type == "shoot" else "VAR-Eingriff"
                                             yaml_lines.append(f"  - name: \"Prüfe Status nach {aktion_text}\"")
                                             yaml_lines.append(f"    actual_attr: \"get_state\"")
@@ -726,6 +772,13 @@ class HighscoreDeluebs:
                                             yaml_lines.append(f"    step_time: 10")  
                                             yaml_lines.append("")
                                             time_debt_ms += 10
+
+                                        else:
+                                            # --- DER BUGFIX ---
+                                            # Unbekannte oder rein textuelle Events (z.B. "Bonus Spieler 1") 
+                                            # werden im Replay nicht geklickt, dürfen aber keine Zeit verschlucken!
+                                            accumulated_delay_ms += delta_new_ms
+
                                             
                                         last_t_orig_ms = t_orig_ms
 

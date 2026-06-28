@@ -460,7 +460,10 @@ class Klappscheibe:
             self.verwendete_zeit = time.monotonic()-self.ReferenzZeit
             penalty_faktor = 1-self.verwendete_zeit/self.SM.feuer.get()*self.SM.survival_penalty
             self.SM.feuer.set(int(penalty_faktor*self.SM.feuer.get()+0.5)) 
+            if self.SM.feuer.get() < 1:
+                self.SM.feuer.set(1)  # Minimal 1 Sekunde Feuerzeit, tiefer geht es nie!
             if self.SM.stand>5: self.SM.stand=5 
+            self.append_event_snapshot("survival_update", self.SM.feuer.get(), round(self.verwendete_zeit, 3))
     
     def welcherSchuss(self, spieler_treffer: list[int]) -> int:
         #if spieler_treffer[0]==-2: return -1

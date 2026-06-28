@@ -18,6 +18,7 @@ except ImportError:
 import HardwareDeLuebs as HDeLuebs    
 import HighscoreDeLuebs as HSDeLuebs 
 import StateManagerDeLuebs as SMDeLuebs
+from StateManagerDeLuebs import GameState
 from AudioDeLuebs import AudioManager
 
 import subprocess
@@ -68,6 +69,7 @@ class ShootingDeluebs:
         self.root.title(f"Shooting DeLübs: Version {VERSION}")
         self.root['background'] = 'grey'
         self.version = VERSION
+        print(f"🎯 Shooting DeLübs     [v{self.version}]")
         
         # Audio-Manager initialisiert Pygame, lädt ZIPs und verwaltet TTS
         self.audio = AudioManager()
@@ -460,6 +462,7 @@ ENTWICKLER- UND SONDERFUNKTIONEN
         schliessen_btn.pack(pady=20, ipadx=40, ipady=10)
 
     def zeige_programm_raster(self):
+        if not self.SMobjekt.get_state()==GameState.SICHERHEIT: return
         raster_win = tk.Toplevel(self.root)
         raster_win.title("Programmauswahl")
         
