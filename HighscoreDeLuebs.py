@@ -256,6 +256,7 @@ class HighscoreDeluebs:
         context_menu = tk.Menu(self.highscore_window, tearoff=0)
         context_menu.add_command(label="Informationen", command=self.show_selected_entries, font=('Arial', 35))            
         context_menu.add_command(label="Highscore Log", command=self.show_selected_highscore_logs, font=('Arial', 35))
+        context_menu.add_command(label="Export Video Config", command=self.export_video_config, font=('Arial', 35))
         context_menu.add_command(label="Export Replay", command=self.export_match_to_yaml, font=('Arial', 35))
         context_menu.add_command(label="Replay abspielen", command=self.play_replay, font=('Arial', 35))
         context_menu.add_command(label="Löschen", command=self.delete_selected_entries, font=('Arial', 35))
@@ -483,7 +484,7 @@ class HighscoreDeluebs:
                                     geladene_daten = json.load(f)
                                     # --- Der neue, strenge Türsteher ---
                                     if not isinstance(geladene_daten, dict) or "timeline" not in geladene_daten:
-                                        from tkinter import messagebox
+                                        #from tkinter import messagebox
                                         messagebox.showinfo(
                                             "Replay nicht möglich", 
                                             f"Match {match_id} verwendet ein veraltetes Speicherformat.\n\n"
@@ -803,6 +804,160 @@ class HighscoreDeluebs:
                         else:
                             from tkinter import messagebox
                             messagebox.showwarning("Nicht gefunden", f"Kein Detail-Log für Match {match_id} gefunden.")
+
+    def export_video_config(self):
+        selected_items = self.tree.selection()
+        if not selected_items:
+            from tkinter import messagebox
+            messagebox.showinfo("Nichts ausgewählt", "Bitte wähle zuerst ein Match aus der Liste aus.")
+            return
+
+        from tkinter import simpledialog
+        import os
+        import json
+        import tkinter as tk
+
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            
+            for entry in self.highscore_manager.data:
+                if entry["timestamp"] == values[5]:
+                    match_id = entry.get("match_id")
+                    
+                    if match_id:
+                        log_path = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
+                        if os.path.exists(log_path):
+                            
+                            # ==========================================
+                            # 1. Abfrage: Wer ist POV?
+                            # ==========================================
+                            spieler_namen = f"{entry.get('spieler', 'Spieler 1')} vs. {entry.get('spieler2', 'Spieler 2')}"
+                            pov_num = simpledialog.askinteger(
+                                "Kamera-Regie", 
+                                f"Match {match_id}: {spieler_namen}\n\nWer soll aus der Ego-Perspektive (POV) gezeigt werden?\n\n1 = {entry.get('spieler', 'Spieler 1')}\n2 = {entry.get('spieler2', 'Spieler 2')}",
+                                initialvalue=1, minvalue=1, maxvalue=2
+                            )
+                            
+                            if pov_num is None: continue
+                            pov_player_idx = pov_num - 1
+                            
+                            # ==========================================
+                            # 2. Abfrage: Das neue Color-Mapping
+                            # ==========================================
+                            mapping_result = {}
+                            
+                            def on_ok():
+                                mapping_result['L'] = var_l.get()
+                                mapping_result['B'] = var_b.get()
+                                dialog.destroy()
+                                
+                            dialog = tk.Toplevel(self.tree.master)
+                            dialog.title("LED-Farben zuweisen")
+                            dialog.geometry("350x250")
+                            dialog.transient(self.tree.master)
+                            dialog.grab_set() # Blockiert Hauptfenster bis Eingabe fertig
+                            
+                            var_l = tk.IntVar(value=0) # 0=Gold, 1=Blau
+                            var_b = tk.IntVar(value=1) # 0=Gold, 1=Blau
+                            
+                            tk.Label(dialog, text="Farbe für LEUCHTENDE Ziele ('L'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
+                            tk.Radiobutton(dialog, text="Goldgelb", variable=var_l, value=0).pack()
+                            tk.Radiobutton(dialog, text="Blau", variable=var_l, value=1).pack()
+                            
+                            tk.Label(dialog, text="Farbe für BLINKENDE Ziele ('B'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
+                            tk.Radiobutton(dialog, text="Goldgelb", variable=var_b, value=0).pack()
+                            tk.Radiobutton(dialog, text="Blau", variable=var_b, value=1).pack()
+                            
+                            tk.Button(dialog, text="Exportieren", command=on_ok, bg="lightgreen").pack(pady=20)
+                            self.tree.master.wait_window(dialog)
+                            
+                            # Falls das Fenster mit X geschlossen wurde (Abbruch)
+                            if 'L' not in mapping_result: continue
+                            
+                            color_map_L = mapping_result['L']
+                            color_map_B = mapping_result['B']
+
+                            # ==========================================
+                            # 3. JSON verarbeiten
+                            # ==========================================
+                            with open(log_path, "r", encoding="utf-8") as f:
+                                daten = json.load(f)
+                            
+                            timeline = daten.get("timeline", daten) if isinstance(daten, dict) else daten
+
+                            timing = []
+                            sequence_pov = []     # NEU: Nur für POV
+                            sequence_gegner = []  # NEU: Nur für Gegner
+                            
+                            gold_l, gold_b = [], []
+                            blau_l, blau_b = [], []
+                            
+                            start_t = None
+                            
+                            for ev in timeline:
+                                action = ev.get("a", "")
+                                m = ev.get("m", "")
+                                
+                                is_feuer_start = (action == "state_change" and m == "FEUER" and start_t is None)
+                                is_shoot = (action == "shoot" and start_t is not None)
+                                
+                                if is_feuer_start or is_shoot:
+                                    if is_feuer_start:
+                                        start_t = ev.get("t", 0.0)
+                                        timing.append(0.00)
+                                        sequence_pov.append(-1)
+                                        sequence_gegner.append(-1)
+                                    else:
+                                        akt_zeit = round(ev.get("t", 0.0) - start_t, 2)
+                                        shooter_idx = ev.get("p", -1)
+                                        target = ev.get("v", -1)
+                                        
+                                        timing.append(akt_zeit)
+                                        
+                                        # --- NEU: Saubere Trennung der Schüsse ---
+                                        if target != -1:
+                                            if shooter_idx == pov_player_idx:
+                                                sequence_pov.append(target)
+                                                sequence_gegner.append(-1)
+                                            else:
+                                                sequence_pov.append(-1)
+                                                sequence_gegner.append(target)
+                                        else:
+                                            # Fehlschuss von irgendwem
+                                            sequence_pov.append(-1)
+                                            sequence_gegner.append(-1)
+                                            
+                                    # --- Die Farb-Zuweisung (bleibt identisch) ---
+                                    L_list = ev.get("L", [])
+                                    B_list = ev.get("B", [])
+                                    
+                                    gold_l.append(L_list if color_map_L == 0 else [])
+                                    blau_l.append(L_list if color_map_L == 1 else [])
+                                    
+                                    gold_b.append(B_list if color_map_B == 0 else [])
+                                    blau_b.append(B_list if color_map_B == 1 else [])
+                                    
+                            video_config = {
+                                "MATCH_ID": match_id,
+                                "POV_SPIELER": entry.get('spieler') if pov_num == 1 else entry.get('spieler2'),
+                                "TIMING": timing,
+                                "SEQUENCE_POV": sequence_pov,          # <-- Angepasst
+                                "SEQUENCE_GEGNER": sequence_gegner,    # <-- Angepasst
+                                "GOLD_LEUCHTEND": gold_l,
+                                "GOLD_BLINKEND": gold_b,
+                                "BLAU_LEUCHTEND": blau_l,
+                                "BLAU_BLINKEND": blau_b
+                            }
+                            
+                            export_dir = "./savegames/video_configs"
+                            os.makedirs(export_dir, exist_ok=True)
+                            export_path = os.path.join(export_dir, f"VIDEO_MATCH{match_id:06d}.json")
+                            
+                            with open(export_path, "w", encoding="utf-8") as f:
+                                json.dump(video_config, f, indent=4)
+                                
+                            print(f"Video-Config erfolgreich exportiert: {export_path}")
+
 
     def play_replay(self):
         import subprocess

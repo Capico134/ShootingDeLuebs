@@ -244,8 +244,8 @@ class Klappscheibe:
                     self.SetLED(key,False)             
  
     def set_treffer_kaenguru(self, key: int):
+        player_index =None
         if self.SM.get_state().is_action_state():
-            player_index =-1
             if key == self.ziel_wahl[0]: player_index=0 #Spieler 1  
             elif self.SM.gegner_modus.get()==1: 
                 if key == self.ziel_wahl[1]: player_index=1 #Spieler 2
@@ -268,12 +268,15 @@ class Klappscheibe:
                         self.ziel_wahl[player_index] = random.choice(possible_values)
                         if player_index==0: self.SetLED(self.ziel_wahl[0], True)  
                         else: self.SetBlinking(self.ziel_wahl[1],True) 
+        return player_index                
 
     def set_treffer_wechsel(self, key: int):
+        player_index =None
         if self.SM.get_state().is_action_state():
             #print("Ziel_Wahl",self.ziel_wahl,"Key",key)
             if self.ziel_wahl[key] > 0:
                 if self.ziel_wahl[key] == 1: #Spieler 1 hat getroffen
+                    player_index = 0
                     self.ziel_wahl[key] = 2
                     self.SetBlinking(key, True)   
                     #Hier Bonuspunkte:
@@ -286,6 +289,7 @@ class Klappscheibe:
                                 self.append_event_snapshot(f"Bonus Spieler 1")
                                 if self.SM.ton.get() == 1: self.SDeluebs.sound_orchestra.play()
                 elif self.ziel_wahl[key] == 2: #Spieler 2 hat getroffen
+                    player_index = 1
                     self.ziel_wahl[key] = 1
                     self.SetBlinking(key, False)   
                     self.SetLED(key, True)
@@ -313,6 +317,7 @@ class Klappscheibe:
                 #Winner-Sound:
                 if self.SM.ton.get() == 1 and all(ziel == self.ziel_wahl[0] for ziel in self.ziel_wahl):
                     self.SDeluebs.sound_win.play()
+        return player_index
 
     def find_wechsel_bonus_key(self, key, ziel_wahl, player_id, direction):
         """
@@ -379,6 +384,7 @@ class Klappscheibe:
                 self.set_ueberlebt()                                
 
     def set_treffer_gegner_zufall(self, key: int):
+        player_index =None
         anzahlZiele = 1 #Wenn kleiner gleich 1 nur eine Scheibe pro Spieler
         if self.SM.scheibenServo.get() > 1 and self.SM.scheibenServo.get() < 5: anzahlZiele = 2 #sonst 2 Scheiben pro Spieler
         
@@ -406,8 +412,10 @@ class Klappscheibe:
             if self.welcherSchuss(self.players[0].treffer)==anzahlZiele and self.welcherSchuss(self.players[1].treffer)==anzahlZiele:
                 if self.SM.ton.get() == 1: self.SDeluebs.sound_win.play()    
                 self.set_ueberlebt()
+        return player_index        
 
     def set_treffer_gegner(self, key: int):
+        player_index =None
         if self.SM.get_state().is_action_state():
             if key in [3, 4, 0, 1]:
                 player_index = 0 if key in [3, 4] else 1
@@ -435,7 +443,8 @@ class Klappscheibe:
                     self.setVerloren_gegner(player_index)
             elif key == 2:
                 self.handle_bonus_modus()#player_index, welcherSchuss, player)                    
-
+        return player_index 
+        
     def handle_bonus_modus(self):#, player_index, welcherSchuss, player):
         #bonus_color = 'plum'
         player = None
@@ -644,6 +653,8 @@ class Klappscheibe:
             "m": self.SM.get_state().name,
             "a": event_type,
             "w": list(self.ziel_wahl), # w war bereits vorhanden
+            "L": self.get_glowing_leds(),      # Ruft z.B. [2, 3] ab        
+            "B": self.get_blinking_leds()      # Ruft z.B. [0, 4] ab            
         }
         
         if value is not None: snapshot["v"] = value
@@ -775,6 +786,17 @@ class Klappscheibe:
             else:               self.SetLED(Nr, True)
             self.SDeluebs.root.after(self.blink_freq, lambda: self.blink_LED(Nr))
 
+    def get_blinking_leds(self):
+        """Gibt eine Liste der Indizes zurück, die gerade aktiv blinken."""
+        # Sucht alle Indizes (0 bis 4), bei denen self.blinking True ist
+        return [i for i, is_blinking in enumerate(self.blinking) if is_blinking]
+
+    def get_glowing_leds(self):
+        """Gibt eine Liste der Indizes zurück, die KONSTANT leuchten (also an sind, aber nicht blinken)."""
+        # Sucht alle Indizes (0 bis 4), bei denen das Licht AN ist UND das Blinken AUS ist
+        return [i for i in range(5) if self.LED_status[i] and not self.blinking[i]]
+
+
 class PyGameTaster(threading.Thread):
     def __init__(self, KSobjekt):
         self.KSobjekt = KSobjekt
@@ -809,21 +831,27 @@ class PyGameTaster(threading.Thread):
         #if self.on_button_event and button_status == True:
         #    self.on_button_event(button_id)
         
+        p_id = -1
+        
         if button_status and self.buttonlaststate[button_id]==False and time.monotonic()-self.buttonlasttime[button_id]>self.buttonsleep: 
             # --- NEU: Der Mock-Hook ist jetzt hier "geschützt" ---
             if self.on_button_event:
                 self.on_button_event(button_id)            
             #Hier Programmauswertung
-            if   self.KSobjekt.SM.zufall.get()==1 and self.KSobjekt.SM.gegner_modus.get()==1: self.KSobjekt.set_treffer_gegner_zufall(button_id) #Gegnermodus mit Zufallsmodus       
-            elif self.KSobjekt.SM.zufall.get()==1:                                            self.KSobjekt.set_treffer_zufall(button_id)        #Zufalls-Modus
-            elif self.KSobjekt.SM.jaeger_modus.get()==1:                                      self.KSobjekt.set_treffer_jaeger(button_id)        #Jäger-Modus
-            elif self.KSobjekt.SM.kaenguru_modus.get()==1:                                    self.KSobjekt.set_treffer_kaenguru(button_id)      #Känguru-Modus
-            elif self.KSobjekt.SM.reihe.get()==1 and  self.KSobjekt.SM.gegner_modus.get()==1: self.KSobjekt.set_treffer_wechsel(button_id)       #Wechsel-Modus
-            elif self.KSobjekt.SM.gegner_modus.get()==1:                                      self.KSobjekt.set_treffer_gegner(button_id)        #Gegner-Modus
-            else:                                                                             self.KSobjekt.set_treffer(button_id)               #Klappscheibe          
+            if   self.KSobjekt.SM.zufall.get()==1 and self.KSobjekt.SM.gegner_modus.get()==1: p_id = self.KSobjekt.set_treffer_gegner_zufall(button_id) #Gegnermodus mit Zufallsmodus       
+            elif self.KSobjekt.SM.zufall.get()==1:                                            
+                                                                                              self.KSobjekt.set_treffer_zufall(button_id)        #Zufalls-Modus
+                                                                                              p_id = 0
+            elif self.KSobjekt.SM.jaeger_modus.get()==1:                                      p_id = self.KSobjekt.set_treffer_jaeger(button_id)        #Jäger-Modus
+            elif self.KSobjekt.SM.kaenguru_modus.get()==1:                                    p_id = self.KSobjekt.set_treffer_kaenguru(button_id)      #Känguru-Modus
+            elif self.KSobjekt.SM.reihe.get()==1 and  self.KSobjekt.SM.gegner_modus.get()==1: p_id = self.KSobjekt.set_treffer_wechsel(button_id)       #Wechsel-Modus
+            elif self.KSobjekt.SM.gegner_modus.get()==1:                                      p_id = self.KSobjekt.set_treffer_gegner(button_id)        #Gegner-Modus
+            else:                                                                             
+                                                                                              self.KSobjekt.set_treffer(button_id)               #Klappscheibe          
+                                                                                              p_id = 0
             self.buttonlaststate[button_id]=True
             self.buttonlasttime[button_id]=time.monotonic()
-            self.KSobjekt.append_event_snapshot("shoot", button_id) # HIER EVENTLOG ERSTELLEN
+            self.KSobjekt.append_event_snapshot("shoot", button_id, p_id) # HIER EVENTLOG ERSTELLEN
         elif button_status==0 and self.buttonlaststate[button_id]==True: 
             self.buttonlaststate[button_id]=False #Hier wird erkannt, dass der Knopf losgelassen wurde
 

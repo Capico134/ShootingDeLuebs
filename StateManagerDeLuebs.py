@@ -74,7 +74,7 @@ class StateManager:
         self.champion_loop_laeuft = False
 
 
-
+        self.setChampionMatch() # STARTET DEN LOOP UM INPUTS VON CHAMPIONSHIP DELUEBS ZU PRÜFEN
 
 
     
@@ -441,6 +441,7 @@ class StateManager:
                     
                     #Hier Wechsel zu Achtung
                     elif (self.get_state()==GameState.LADEN or self.get_state()==GameState.VORBEREITEN or self.get_state().is_action_state()): 
+                        self.SDeluebs.KSobjekt.LEDsOff() #Muss oben sein, weil es im eventlog korrekt sein muss.
                         self.set_state(GameState.ACHTUNG)
                         self.stand=self.achtung.get()
                         #Anpassen des Zyklus (hierher wegen Event log)
@@ -456,7 +457,7 @@ class StateManager:
                                 self.SDeluebs.root.after(timedelay, self.SDeluebs.tts.say, 'Jäger ist ' + jaeger_name)
                         #HardwareDeLuebs
                         if self.scheibenServo.get()!=-2: self.SDeluebs.DSobjekt.update_servos()
-                        self.SDeluebs.KSobjekt.LEDsOff()
+                        
                         
                     #Hier Wechsel zu Feuer
                     elif (self.get_state()==GameState.ACHTUNG): 
@@ -604,44 +605,47 @@ class StateManager:
             if self.ton.get()==1: self.SDeluebs.sound_load.play()            
 
     def setChampionMatch(self):
-# 0. NEU: Wächter setzen, damit der Loop nicht mehrfach gestartet wird
-        if not hasattr(self, 'champion_loop_laeuft'):
-            self.champion_loop_laeuft = False
-        self.champion_loop_laeuft = True        
-        # Wenn die Funktion durch den Key-Handler aufgerufen wird, aber der Loop
-        # schon durch einen FRÜHEREN Tastendruck läuft, brechen wir sofort ab!
-        # (WICHTIG: Wir müssen unterscheiden, ob der Aufruf vom Keyhandler oder vom after-Timer kommt. 
-        # Da wir der after-Timer sind, der den Loop am Leben hält, setzen wir das Flag einfach nach dem ersten Start auf True).
-        if self.get_state()==GameState.SICHERHEIT: 
+        if self.get_state() == GameState.SICHERHEIT: 
             live_file = self.NEXT_MATCH_PATH
-            # Initialisierung, falls die Variable beim ersten Start noch nicht existiert
+            
             if not hasattr(self, 'last_mtime'):
                 self.last_mtime = 0
-            # 1. GIBT ES DIE DATEI ÜBERHAUPT?
-            if not os.path.exists(live_file):
-                self.last_mtime = 0
-            else:
-                # 2. DATEI IST DA -> PRÜFEN OB NEU!
+
+            # 1. PRÜFEN OB DATEI EXISTIERT
+            if os.path.exists(live_file):
                 current_mtime = os.path.getmtime(live_file)
+                
+                # NEU: Alter der Datei beim allerersten Fund prüfen
+                if self.last_mtime == 0:
+                    file_age_seconds = time.time() - current_mtime
+                    if file_age_seconds > 180:  # 180 Sekunden = 3 Minuten
+                        # Datei ist eine "Karteileiche". Wir ignorieren den Inhalt, 
+                        # markieren sie aber als "gesehen", damit der nächste Check fehlschlägt.
+                        self.last_mtime = current_mtime
+
+                # 2. PRÜFEN OB NEU (Das hier überspringt er nun automatisch, wenn die Datei zu alt war!)
                 if current_mtime > self.last_mtime:
                     try:            
                         with open(live_file, mode='r', encoding='utf-8') as file:
                             csvFile = csv.reader(file, skipinitialspace=True)
-                            for _ in range(2): # Vorspringen auf die korrekte Zeile
+                            for _ in range(2): 
                                 csvLine = next(csvFile)
+                            
                             self.spieler.set(csvLine[0])
                             self.spieler2.set(csvLine[1])
                             self.clear_tags()
+                            
                             if self.ton.get() == 1: 
                                 self.SDeluebs.sound_load.play() 
-                            # WICHTIG: Zeitstempel merken, damit wir es nicht doppelt lesen!
+                                
                             self.last_mtime = current_mtime
-                    except Exception as e:
-                        pass # Lese-Kollision ignorieren, in einer Sekunde versucht er es eh nochmal 
+                    except Exception:
+                        pass
+            else:
+                self.last_mtime = 0 
+
         # 3. DER HERZSCHLAG
-        # Das hier muss GANZ ans Ende, außerhalb aller if-Bedingungen.
-        # So prüft der Pi unermüdlich jede Sekunde, ob es was Neues gibt.
-        self.SDeluebs.root.after(1000, self.setChampionMatch)                   
+        self.SDeluebs.root.after(1000, self.setChampionMatch)           
 
     def check_exclusive_options(self, name: str):
         #Wenn Reihe aktiviert wird, andere abschalten

@@ -657,12 +657,12 @@ ENTWICKLER- UND SONDERFUNKTIONEN
             self.SMobjekt.system_update_laeuft = False
             self.SMobjekt.add_tag(SMDeLuebs.Tag.DEVELOPER)         
             
-        if event.keysym in ('s', 'S'):
-            if not getattr(self.SMobjekt, 'champion_loop_laeuft', False):
-                print("Lade Meisterschaft Spieler (Loop gestartet)!")
-                self.SMobjekt.setChampionMatch()
-            else:
-                print("Ignoriert: Meisterschafts-Loop läuft bereits!")
+        #if event.keysym in ('s', 'S'):
+        #    if not getattr(self.SMobjekt, 'champion_loop_laeuft', False):
+        #        print("Lade Meisterschaft Spieler (Loop gestartet)!")
+        #        self.SMobjekt.setChampionMatch()
+        #    else:
+        #        print("Ignoriert: Meisterschafts-Loop läuft bereits!")
                 
         if event.keysym == 'less':
             self.KSobjekt.Anulliere_zyklus2durchgang(0)
