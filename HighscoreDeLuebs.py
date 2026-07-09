@@ -560,14 +560,14 @@ class HighscoreDeluebs:
                                     lg = metadata.get("ladenGelb", 3)
                                     new_lg = lg 
                                     
-                                    # Smart-Speedups anwenden
-                                    if "(dev)" in programm_name:
-                                        metadata["vorbereiten"] = 1
-                                        metadata["ladenGelb"] = 1
-                                        new_lg = 1
-                                    else:
-                                        new_lg = min(lg, 3)
-                                        metadata["ladenGelb"] = new_lg
+                                    ## Smart-Speedups anwenden
+                                    #if "(dev)" in programm_name:
+                                    #    metadata["vorbereiten"] = 1
+                                    #    metadata["ladenGelb"] = 1
+                                    #    new_lg = 1
+                                    #else:
+                                    #    new_lg = min(lg, 3)
+                                    #    metadata["ladenGelb"] = new_lg
 
                                     # =================================================================
                                     # --- 4. INITIALISIERUNG & HISTORISCHE ZEITKAPSEL ---
@@ -757,10 +757,13 @@ class HighscoreDeluebs:
                                         # --- SURVIVAL SYNC FIX (Speichern statt sofort ausführen) ---
                                         # =========================================================
                                         elif action_type == "survival_update":
-                                            # Ein kleiner Trick, damit er sowohl dein altes Log (wo der 
-                                            # Wert in 'p' stand) als auch neue Logs (Wert in 'v') frisst:
+
                                             val_v = ev.get('v')
-                                            feuer_neu = val_v if isinstance(val_v, (int, float)) else ev.get('p', 0)
+                                            if val_v is not None:
+                                                feuer_neu = float(val_v) # Zwingt es zur Zahl, egal ob String oder int
+                                            else:
+                                                feuer_neu = 0
+                                                print("Achtung survival_update hatte keinen Wert bei v")
                                             
                                             pending_survival_feuer = feuer_neu 
                                             accumulated_delay_ms += delta_new_ms
@@ -949,12 +952,33 @@ class HighscoreDeluebs:
                                 "BLAU_BLINKEND": blau_b
                             }
                             
+                            # ==========================================
+                            # --- SMARTES & KOMPAKTES SPEICHERN ---
+                            # ==========================================
                             export_dir = "./savegames/video_configs"
                             os.makedirs(export_dir, exist_ok=True)
                             export_path = os.path.join(export_dir, f"VIDEO_MATCH{match_id:06d}.json")
                             
+                            # Wir bauen das JSON zeilenweise selbst zusammen.
+                            # json.dumps() ohne indent schreibt die Listen perfekt in eine Zeile!
+                            json_zeilen = [
+                                "{",
+                                f'    "MATCH_ID": {video_config["MATCH_ID"]},',
+                                f'    "POV_SPIELER": "{video_config["POV_SPIELER"]}",',
+                                f'    "TIMING": {json.dumps(video_config["TIMING"])},',
+                                f'    "SEQUENCE_POV": {json.dumps(video_config["SEQUENCE_POV"])},',
+                                f'    "SEQUENCE_GEGNER": {json.dumps(video_config["SEQUENCE_GEGNER"])},',
+                                f'    "GOLD_LEUCHTEND": {json.dumps(video_config["GOLD_LEUCHTEND"])},',
+                                f'    "GOLD_BLINKEND": {json.dumps(video_config["GOLD_BLINKEND"])},',
+                                f'    "BLAU_LEUCHTEND": {json.dumps(video_config["BLAU_LEUCHTEND"])},',
+                                f'    "BLAU_BLINKEND": {json.dumps(video_config["BLAU_BLINKEND"])}',
+                                "}"
+                            ]
+                            kompakter_json_text = "\n".join(json_zeilen)
+                            
+                            # Datei atomar/sauber wegschreiben
                             with open(export_path, "w", encoding="utf-8") as f:
-                                json.dump(video_config, f, indent=4)
+                                f.write(kompakter_json_text)
                                 
                             print(f"Video-Config erfolgreich exportiert: {export_path}")
 

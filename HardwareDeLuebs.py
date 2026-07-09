@@ -196,11 +196,15 @@ class Klappscheibe:
         if self.SM.get_state().is_action_state():
             #Prüfen wer Jäger und Gejagter ist
             if self.players[0].is_jaeger: 
-                jaeger=self.players[0] 
-                gejagter=self.players[1] 
+                jaeger = self.players[0] 
+                jaeger_id = 0                   # <--- NEU
+                gejagter = self.players[1] 
+                gejagter_id = 1                 # <--- NEU
             else: 
-                jaeger=self.players[1] 
-                gejagter=self.players[0] 
+                jaeger = self.players[1] 
+                jaeger_id = 1                   # <--- NEU
+                gejagter = self.players[0] 
+                gejagter_id = 0                 # <--- NEU
             #Der erste Schuss vom Jäger
             if self.jaeger_wahl==-1: 
                 self.jaeger_wahl=key
@@ -213,6 +217,7 @@ class Klappscheibe:
                 restzeit_zyklus=round((self.SM.feuer.get()-(time.monotonic()-self.ReferenzZeit)),3)
                 jaeger.speedpunkte_zyklus = restzeit_zyklus / self.SM.feuer.get()/5                       # HIER GIBTS SPEEDPUNKTE
                 if self.SM.ton.get()==1: self.SDeluebs.sound0.play()
+                return jaeger_id                # <--- NEU: Der Jäger hat den Startschuss gesetzt
             #Gejagter trifft
             elif key in [self.ziel_wahl[0], self.ziel_wahl[1]] and self.jaeger_wahl>-1:
                 if key not in gejagter.treffer: #Einen neuen getroffen 
@@ -229,6 +234,7 @@ class Klappscheibe:
                     set_punkte(gejagter, welcherSchuss, self.SM.feuer.get(), self.ReferenzZeit, key, multiplier) #Punkte zuweisen!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     self.SetBlinking(key,False) 
                     self.SetLED(key,False) 
+                    return gejagter_id          # <--- NEU: Der Gejagte hat gültig getroffen
             #Jäger trifft
             elif key in [self.ziel_wahl[2], self.ziel_wahl[3], self.ziel_wahl[4]] and self.jaeger_wahl>-1:
                 if key not in jaeger.treffer: #Einen neuen getroffen             
@@ -241,7 +247,9 @@ class Klappscheibe:
                         self.set_ueberlebt()
                         if self.SM.stand>5: self.SM.stand=5 
                     set_punkte(jaeger, welcherSchuss, self.SM.feuer.get(), self.ReferenzZeit, key) #Punkte zuweisen!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                    self.SetLED(key,False)             
+                    self.SetLED(key,False)   
+                    return jaeger_id            # <--- NEU: Der Jäger hat gültig getroffen             
+        return None                             # <--- NEU: Fallback (Kein gültiger Treffer / Außerhalb Action State)                    
  
     def set_treffer_kaenguru(self, key: int):
         player_index =None

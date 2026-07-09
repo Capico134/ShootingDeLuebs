@@ -4,3 +4,4 @@ savegames/
 __pycache__/
 *.pyc
 _temp_launcher.py
+video_creator/output/
