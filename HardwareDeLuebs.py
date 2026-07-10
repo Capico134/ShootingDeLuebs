@@ -190,7 +190,9 @@ class Klappscheibe:
                         if self.SM.ton.get() == 1 and welcherSchuss == 4:
                             self.SDeluebs.sound_win.play()    
                             self.set_ueberlebt()
-            else: self.checkVerloren(True)             
+            else: self.checkVerloren(True)     
+            return 0 # player_index = 0
+        return None
     
     def set_treffer_jaeger(self, key: int):
         if self.SM.get_state().is_action_state():
@@ -252,12 +254,12 @@ class Klappscheibe:
         return None                             # <--- NEU: Fallback (Kein gültiger Treffer / Außerhalb Action State)                    
  
     def set_treffer_kaenguru(self, key: int):
-        player_index =None
+        player_index = None
         if self.SM.get_state().is_action_state():
             if key == self.ziel_wahl[0]: player_index=0 #Spieler 1  
             elif self.SM.gegner_modus.get()==1: 
                 if key == self.ziel_wahl[1]: player_index=1 #Spieler 2
-            if player_index > -1:
+            if player_index is not None:
                 #print(player_index)
                 player = self.players[player_index]
                 welcherSchuss = self.welcherSchuss(player.treffer)
@@ -389,7 +391,9 @@ class Klappscheibe:
             if player.treffer[welcherSchuss] < 0: self.checkVerloren(True) #Entweder schon -2 oder einen Falschen getroffen
             if self.welcherSchuss(self.players[0].treffer)==len(self.ziel_wahl):
                 if self.SM.ton.get() == 1: self.SDeluebs.sound_win.play()    
-                self.set_ueberlebt()                                
+                self.set_ueberlebt()           
+            return 0 # player_index = 0
+        return None
 
     def set_treffer_gegner_zufall(self, key: int):
         player_index =None
@@ -846,27 +850,24 @@ class PyGameTaster(threading.Thread):
         #if self.on_button_event and button_status == True:
         #    self.on_button_event(button_id)
         
-        p_id = -1
+        p_id = None
         
         if button_status and self.buttonlaststate[button_id]==False and time.monotonic()-self.buttonlasttime[button_id]>self.buttonsleep: 
-            # --- NEU: Der Mock-Hook ist jetzt hier "geschützt" ---
-            if self.on_button_event:
-                self.on_button_event(button_id)            
             #Hier Programmauswertung
             if   self.KSobjekt.SM.zufall.get()==1 and self.KSobjekt.SM.gegner_modus.get()==1: p_id = self.KSobjekt.set_treffer_gegner_zufall(button_id) #Gegnermodus mit Zufallsmodus       
-            elif self.KSobjekt.SM.zufall.get()==1:                                            
-                                                                                              self.KSobjekt.set_treffer_zufall(button_id)        #Zufalls-Modus
-                                                                                              p_id = 0
+            elif self.KSobjekt.SM.zufall.get()==1:                                            p_id = self.KSobjekt.set_treffer_zufall(button_id)        #Zufalls-Modus
             elif self.KSobjekt.SM.jaeger_modus.get()==1:                                      p_id = self.KSobjekt.set_treffer_jaeger(button_id)        #Jäger-Modus
             elif self.KSobjekt.SM.kaenguru_modus.get()==1:                                    p_id = self.KSobjekt.set_treffer_kaenguru(button_id)      #Känguru-Modus
             elif self.KSobjekt.SM.reihe.get()==1 and  self.KSobjekt.SM.gegner_modus.get()==1: p_id = self.KSobjekt.set_treffer_wechsel(button_id)       #Wechsel-Modus
             elif self.KSobjekt.SM.gegner_modus.get()==1:                                      p_id = self.KSobjekt.set_treffer_gegner(button_id)        #Gegner-Modus
-            else:                                                                             
-                                                                                              self.KSobjekt.set_treffer(button_id)               #Klappscheibe          
-                                                                                              p_id = 0
+            else:                                                                             p_id = self.KSobjekt.set_treffer(button_id)               #Klappscheibe          
+
             self.buttonlaststate[button_id]=True
             self.buttonlasttime[button_id]=time.monotonic()
             self.KSobjekt.append_event_snapshot("shoot", button_id, p_id) # HIER EVENTLOG ERSTELLEN
+            # --- NEU: Der Mock-Hook ist jetzt hier "geschützt" ---
+            if self.on_button_event:
+                self.on_button_event(button_id, p_id)    
         elif button_status==0 and self.buttonlaststate[button_id]==True: 
             self.buttonlaststate[button_id]=False #Hier wird erkannt, dass der Knopf losgelassen wurde
 

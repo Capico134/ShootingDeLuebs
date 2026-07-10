@@ -846,23 +846,25 @@ class HighscoreDeluebs:
                             pov_player_idx = pov_num - 1
                             
                             # ==========================================
-                            # 2. Abfrage: Das neue Color-Mapping
+                            # 2. Abfrage: Color-Mapping & Video-Format
                             # ==========================================
                             mapping_result = {}
                             
                             def on_ok():
                                 mapping_result['L'] = var_l.get()
                                 mapping_result['B'] = var_b.get()
+                                mapping_result['SHORTS'] = var_shorts.get() # <-- NEU: Wert speichern
                                 dialog.destroy()
                                 
                             dialog = tk.Toplevel(self.tree.master)
-                            dialog.title("LED-Farben zuweisen")
-                            dialog.geometry("350x250")
+                            dialog.title("Video & LED-Farben konfigurieren")
+                            dialog.geometry("350x320") # <-- NEU: Etwas höher gemacht
                             dialog.transient(self.tree.master)
-                            dialog.grab_set() # Blockiert Hauptfenster bis Eingabe fertig
+                            dialog.grab_set() 
                             
                             var_l = tk.IntVar(value=0) # 0=Gold, 1=Blau
                             var_b = tk.IntVar(value=1) # 0=Gold, 1=Blau
+                            var_shorts = tk.BooleanVar(value=False) # <-- NEU: Standardmäßig False
                             
                             tk.Label(dialog, text="Farbe für LEUCHTENDE Ziele ('L'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
                             tk.Radiobutton(dialog, text="Goldgelb", variable=var_l, value=0).pack()
@@ -872,14 +874,18 @@ class HighscoreDeluebs:
                             tk.Radiobutton(dialog, text="Goldgelb", variable=var_b, value=0).pack()
                             tk.Radiobutton(dialog, text="Blau", variable=var_b, value=1).pack()
                             
-                            tk.Button(dialog, text="Exportieren", command=on_ok, bg="lightgreen").pack(pady=20)
+                            # --- NEU: Die Shorts-Checkbox ---
+                            tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10) # Trennlinie
+                            tk.Checkbutton(dialog, text="YouTube-Shorts Format (9:16)", variable=var_shorts, font=("Arial", 10, "bold"), fg="darkred").pack()
+                            
+                            tk.Button(dialog, text="Exportieren", command=on_ok, bg="lightgreen").pack(pady=15)
                             self.tree.master.wait_window(dialog)
                             
-                            # Falls das Fenster mit X geschlossen wurde (Abbruch)
                             if 'L' not in mapping_result: continue
                             
                             color_map_L = mapping_result['L']
                             color_map_B = mapping_result['B']
+                            is_shorts = mapping_result['SHORTS'] # <-- NEU: Variable auslesen
 
                             # ==========================================
                             # 3. JSON verarbeiten (Die smarte Kamera-Regie)
@@ -981,9 +987,10 @@ class HighscoreDeluebs:
                             video_config = {
                                 "MATCH_ID": match_id,
                                 "POV_SPIELER": entry.get('spieler') if pov_num == 1 else entry.get('spieler2'),
+                                "YOUTUBE_SHORTS": is_shorts,  # <-- HIER die Variable einsetzen!
                                 "TIMING": timing,
-                                "SEQUENCE_POV": sequence_pov,          # <-- Angepasst
-                                "SEQUENCE_GEGNER": sequence_gegner,    # <-- Angepasst
+                                "SEQUENCE_POV": sequence_pov,
+                                "SEQUENCE_GEGNER": sequence_gegner,
                                 "GOLD_LEUCHTEND": gold_l,
                                 "GOLD_BLINKEND": gold_b,
                                 "BLAU_LEUCHTEND": blau_l,
@@ -1017,10 +1024,12 @@ class HighscoreDeluebs:
                                 return "[" + ", ".join(f"{json.dumps(arr[i]):>{col_widths[i]}}" for i in range(len(arr))) + "]"
                             
                             # 3. JSON zusammensetzen
+                            # --- NEU: YOUTUBE_SHORTS mit in die Datei schreiben ---
                             json_zeilen = [
                                 "{",
                                 f'    "MATCH_ID": {video_config["MATCH_ID"]},',
                                 f'    "POV_SPIELER": "{video_config["POV_SPIELER"]}",',
+                                f'    "YOUTUBE_SHORTS": {"true" if video_config["YOUTUBE_SHORTS"] else "false"},',
                                 f'    "TIMING":          {format_row(video_config["TIMING"])},',
                                 f'    "SEQUENCE_POV":    {format_row(video_config["SEQUENCE_POV"])},',
                                 f'    "SEQUENCE_GEGNER": {format_row(video_config["SEQUENCE_GEGNER"])},',

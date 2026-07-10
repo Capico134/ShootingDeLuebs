@@ -25,11 +25,14 @@ else:
 with open(CONFIG_DATEI, "r", encoding="utf-8") as f:
     cfg = json.load(f)
 
+YOUTUBE_SHORTS_MODUS = cfg.get("YOUTUBE_SHORTS", False)
+
 # --- DER GENIALE TRICK FÜR DEN OUTPUT ---
 # Wir ersetzen einfach die Dateiendung. 
 # Aus "../savegames/video_configs/VIDEO_MATCH000383.json" 
 # wird automatisch "../savegames/video_configs/VIDEO_MATCH000383_Render.mp4"
 OUTPUT_NAME = CONFIG_DATEI.replace(".json", "_Render.mp4")
+print(f"OUTPUT_NAME: {OUTPUT_NAME}")
 
 BG_IMAGE = "Schiessstand_upscayl_3x_upscayl-standard-4x.png"
 
@@ -283,6 +286,7 @@ def get_gun_position(t):
 # 3. VIDEO-ZUSAMMENBAU (MoviePy v2.2.1)
 # ==========================================
 def build_video():
+    global OUTPUT_NAME  # <--- DIESE ZEILE HINZUFÜGEN!
     print(f"--- Starte Rendering: {OUTPUT_NAME} ---")
     
     # NEU: Die Videolänge richtet sich jetzt dynamisch nach den JSON-Daten!
@@ -582,33 +586,55 @@ def build_video():
             preset="ultrafast", # 4. FFmpeg-Turbo (Datei wird größer, rendert aber sofort)
             threads=4           # 5. Nutzt mehrere CPU-Kerne (je nach deinem PC, z.B. 4 oder 8)
         ))
+        print("--- Vorschau fertig! ---")
+        return  # <--- HIER IST DEIN RETTER! Er bricht die Funktion hier ab.
 
-    else:
-        # --- DER GPU-TURBO EXPORT ---
-        #final_video=final_video.subclipped(1, 9.5)       # 2. Nur die ersten X Sekunden rendern
-        final_video.write_videofile(
-            OUTPUT_NAME, 
-            fps=30, 
-            codec="h264_nvenc",          # <-- Hier sitzt die Magie (Nvidia Hardware Encoding)
-            preset="fast",               # nvenc hat eigene Presets wie "fast", "medium", "slow"
-            threads=4,
-            ffmpeg_params=["-pix_fmt", "yuv420p"] # Verhindert Farb-Kompatibilitätsprobleme
-        )
+    if YOUTUBE_SHORTS_MODUS:
+        print("Wandle Video in dynamischen Kamera-Ausschnitt um (ohne Ränder)...")
+        
+        # 1. Die Kamera-Intelligenz: Wo ist das Visier gerade?
+        def get_pan_x(t):
+            start_pos, end_pos, progress = get_current_target_info(t)
+            base_x = start_pos[0] + (end_pos[0] - start_pos[0]) * progress
+            
+            # Wir wollen 1080 Pixel Breite. Die Kamera soll base_x genau in der Mitte haben
+            x1 = base_x - (1080 / 2)
+            
+            # Crash-Schutz: Die Kamera darf nicht links oder rechts über den Rand fallen!
+            x1 = max(0, min(x1, 2400 - 1080))
+            return int(x1)
+            
+        # 2. Den "Kameramann" auf das breite Video anwenden
+        def dynamic_crop(get_frame, t):
+            frame = get_frame(t)
+            x1 = get_pan_x(t)
+            # Schneidet das Bild in der Breite auf 1080px zu, Höhe (920px) bleibt gleich
+            return frame[:, x1:x1+1080, :]
+            
+        # 3. Wir überschreiben final_video direkt mit dem zugeschnittenen Clip (1080x920)
+        # 3. Wir überschreiben final_video direkt mit dem zugeschnittenen Clip (1080x920)
+        final_video = (final_video
+                       .transform(dynamic_crop)
+                       .with_audio(final_video.audio)
+                       .with_mask(None)) # <--- HIER IST DER RETTER! Wir löschen die 2400px Maske.
+        
+        # Damit das normale Breitbild-Video nicht überschrieben wird:
+        OUTPUT_NAME = OUTPUT_NAME.replace("_Render.mp4", "_Shorts.mp4")
 
 
-    
-    #final_video.write_videofile(OUTPUT_NAME, fps=30, codec="libx264")
-    
-    
-    
-#GEHT NICHT!    
-    #final_video.write_videofile(
-    #    OUTPUT_NAME, 
-    #    fps=30, 
-    #    codec="libx264", 
-    #    # Hier wird die Größe erzwungen:
-    #    size=(1920, 1080) 
-    #)
+    # ========================================================
+    # --- DER GPU-TURBO EXPORT (Immer ausführen!) ---
+    # ========================================================
+    print(f"Schreibe Datei: {OUTPUT_NAME}")
+    final_video.write_videofile(
+        OUTPUT_NAME, 
+        fps=30, 
+        codec="h264_nvenc",          
+        preset="fast",               
+        threads=4,
+        ffmpeg_params=["-pix_fmt", "yuv420p"] 
+    )
+
     print("--- Video erfolgreich exportiert! ---")
 
 if __name__ == "__main__":

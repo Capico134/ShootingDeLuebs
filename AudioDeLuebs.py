@@ -38,6 +38,10 @@ class AudioManager:
                 self.sound_buzzticker.set_volume(0.8)                    
                 self.sound_shoot = pygame.mixer.Sound(io.BytesIO(pak.read('freesound_community-080997_bullet-39735.wav')))
                 self.sound_shoot.set_volume(0.9)
+                self.sound_shoot_active = pygame.mixer.Sound(io.BytesIO(pak.read('pov_schuss.wav')))
+                self.sound_shoot_active.set_volume(0.9)
+                self.sound_shoot_passive = pygame.mixer.Sound(io.BytesIO(pak.read('gegner_schuss.wav')))
+                self.sound_shoot_passive.set_volume(0.9)                
         except Exception as e:
             print(f"WARNUNG: Konnte Audio-Dateien nicht laden: {e}")
 
