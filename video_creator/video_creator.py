@@ -1,4 +1,5 @@
 import os
+import sys
 import math
 import numpy as np
 import json
@@ -11,13 +12,29 @@ from moviepy import (
 # ==========================================
 # 1. KONFIGURATION & PARAMETER
 # ==========================================
-CONFIG_DATEI = "../savegames/video_configs/VIDEO_MATCH000380.json"
+import sys
+import os
+import json
+
+# Welches JSON soll geladen werden?
+if len(sys.argv) > 1:
+    CONFIG_DATEI = sys.argv[1]
+else:
+    CONFIG_DATEI = "../savegames/video_configs/VIDEO_MATCH000383.json"
+
 with open(CONFIG_DATEI, "r", encoding="utf-8") as f:
     cfg = json.load(f)
 
+# --- DER GENIALE TRICK FÜR DEN OUTPUT ---
+# Wir ersetzen einfach die Dateiendung. 
+# Aus "../savegames/video_configs/VIDEO_MATCH000383.json" 
+# wird automatisch "../savegames/video_configs/VIDEO_MATCH000383_Render.mp4"
+OUTPUT_NAME = CONFIG_DATEI.replace(".json", "_Render.mp4")
+
 BG_IMAGE = "Schiessstand_upscayl_3x_upscayl-standard-4x.png"
-GUN_VIDEO = "Precision_Air_Pistol_Shot_Simulation.mp4"
-OUTPUT_NAME = "output.mp4"
+
+#ALT!!!!
+#GUN_VIDEO = "Precision_Air_Pistol_Shot_Simulation.mp4"
 
 # --- OPTIONALE AUDIO-DATEIEN ---
 USE_CUSTOM_AUDIO = True  # True = Nutze WAVs, False = Nutze Ton aus schuss.mp4
@@ -48,11 +65,81 @@ TARGETS = [
     (212, 443) # Ziel 4 (ganz rechts)
 ]
 
-# Einmalige Vorberechnung für die Kamera (Nutzt jetzt SEQUENCE_POV!)
+
+# --- NEU: Koordinaten auch für Kommazahlen (Fake-Bewegungen) berechnen ---
+def get_target_coords(val):
+    if isinstance(val, int):
+        return TARGETS[val]
+    elif isinstance(val, float):
+        lower = int(math.floor(val))
+        upper = int(math.ceil(val))
+        
+        # Sicherheits-Clip, falls mal jemand 4.5 eingibt
+        upper = min(upper, len(TARGETS) - 1)
+        lower = min(lower, len(TARGETS) - 1)
+        
+        if lower == upper: 
+            return TARGETS[lower]
+            
+        frac = val - lower
+        x = TARGETS[lower][0] + (TARGETS[upper][0] - TARGETS[lower][0]) * frac
+        y = TARGETS[lower][1] + (TARGETS[upper][1] - TARGETS[lower][1]) * frac
+        return (x, y)
+        
+    return TARGETS[2] # Fallback
+
+
+# ==========================================
+# Einmalige Vorberechnung für die Kamera (mit Versteck-Logik)
+# ==========================================
+HIDE_OFFSET_Y = 1000  # Wie viele Pixel soll die Waffe nach unten ins "Holster" verschwinden?
+
 GUN_WAYPOINTS = []
-for i in range(len(TIMING)):
-    if SEQUENCE_POV[i] != -1:
-        GUN_WAYPOINTS.append((TIMING[i], TARGETS[SEQUENCE_POV[i]]))
+
+# ==========================================
+# Einmalige Vorberechnung für die Kamera (mit Versteck-Logik)
+# ==========================================
+HIDE_OFFSET_Y = 1000 
+GUN_WAYPOINTS = []
+
+def find_target(start_idx, direction=1):
+    idx = start_idx
+    while 0 <= idx < len(SEQUENCE_POV):
+        val = SEQUENCE_POV[idx]
+        if isinstance(val, (int, float)) and val >= 0:
+            return get_target_coords(val)
+        idx += direction
+    return TARGETS[2]
+
+last_valid_pos = None
+
+for i, val in enumerate(SEQUENCE_POV):
+    current_t = TIMING[i]
+
+    if val == "UP":
+        tgt = find_target(i, 1)
+        pos = (tgt[0], tgt[1] + HIDE_OFFSET_Y)
+        GUN_WAYPOINTS.append((current_t, pos))
+        last_valid_pos = pos
+
+    elif val == "DOWN":
+        tgt = find_target(i, -1)
+        pos = (tgt[0], tgt[1] + HIDE_OFFSET_Y)
+        
+        if last_valid_pos:
+            # FIX Punkt 1: 1.5 Sekunden statt 0.8 sorgt für ein samtweiches Absenken!
+            hold_time = max(0, current_t - 1.5)
+            if len(GUN_WAYPOINTS) > 0 and hold_time > GUN_WAYPOINTS[-1][0]:
+                GUN_WAYPOINTS.append((hold_time, last_valid_pos))
+                
+        GUN_WAYPOINTS.append((current_t, pos))
+        last_valid_pos = pos
+
+    elif isinstance(val, (int, float)) and val >= 0:
+        # Normaler Schuss ODER Fake-Fahrt (z.B. 0.7)
+        pos = get_target_coords(val)
+        GUN_WAYPOINTS.append((current_t, pos))
+        last_valid_pos = pos
 
 
 
@@ -115,17 +202,20 @@ def get_current_target_info(t):
     return GUN_WAYPOINTS[-1][1], GUN_WAYPOINTS[-1][1], 1.0
 
 def get_camera_shake(t):
-    # Wackelt NUR an den Wegpunkten der Kamera (Günthers Schüsse)
-    for wp_time, _ in GUN_WAYPOINTS:
-        # Ist die aktuelle Zeit kurz nach einem Schuss von Günther?
-        if wp_time < t < (wp_time + 0.2): 
-            # BÄM! Rückstoß
-            time_since_shot = t - wp_time
-            shake_y = math.sin(time_since_shot * 100) * 6
-            shake_x = math.cos(time_since_shot * 80) * 3
-            return shake_x, shake_y
-            
-    return 0, 0 # Kein Shake
+    """Wackelt NUR bei echten Schüssen, nicht bei UP/DOWN Fahrten!"""
+    for i, wp_time in enumerate(TIMING):
+        val = SEQUENCE_POV[i]
+        
+        # Ist es ein echter Schuss (Zahl 0 bis 4)?
+        if isinstance(val, int) and val >= 0:
+            if wp_time < t < (wp_time + 0.2): 
+                # BÄM! Rückstoß
+                time_since_shot = t - wp_time
+                shake_y = math.sin(time_since_shot * 100) * 6
+                shake_x = math.cos(time_since_shot * 80) * 3
+                return shake_x, shake_y
+                
+    return 0, 0 # Kein Shake bei UP, DOWN oder -1
 
 #SMART!!!!!!!!!!!!!!!!!!!!!!!!!!
 # True = Der Fokus gleitet in jedem Frame weich mit der Pistole mit.
@@ -164,7 +254,6 @@ def get_focus_position(t):
 
 def get_gun_position(t):
     """Gleitet sanft, nutzt jetzt exakt dieselbe Motor-Logik wie der Fokus!"""
-    # Holt sich die perfekte, synchrone Position
     start_pos, end_pos, progress = get_current_target_info(t)
     
     # 1. Basis-Koordinaten berechnen
@@ -179,6 +268,14 @@ def get_gun_position(t):
     
     final_x = base_x + breath_x + (base_shake_x * 2) + GUN_OFFSET_X
     final_y = base_y + breath_y + (base_shake_y * 2) + GUN_OFFSET_Y
+    
+    # ==========================================
+    # --- MOVIEPY CRASH-SCHUTZ ---
+    # Wir lassen die Waffe niemals tiefer als Y=915 fallen. 
+    # So bleibt 1 Millimeter im Bild, MoviePy stürzt nicht ab, 
+    # und durch den Greenscreen sieht man trotzdem absolut nichts!
+    final_y = min(final_y, 915)
+    # ==========================================
     
     return (final_x, final_y)
 
@@ -356,35 +453,30 @@ def build_video():
 
     # 3. Die professionelle Time-Warp-Logik
     def get_active_gun_clip_time(t):
-        # Wir gehen RÜCKWÄRTS durch die Liste. Der aktuellste Schuss gewinnt!
-        for i in range(len(GUN_WAYPOINTS) - 1, -1, -1):
-            wp_time = GUN_WAYPOINTS[i][0]
+        """Spielt das Video (Greenscreen-Rückstoß) NUR bei echten Schüssen ab!"""
+        # 1. Wir filtern uns schnell alle ECHTEN Schuss-Zeiten heraus
+        valid_shots = [TIMING[i] for i, val in enumerate(SEQUENCE_POV) if isinstance(val, int) and val >= 0]
+        
+        # 2. Wir prüfen die Zeiten rückwärts
+        for i in range(len(valid_shots) - 1, -1, -1):
+            wp_time = valid_shots[i]
             
-            # Theoretischer Start (damit der Treffer exakt bei 2.6s landet)
             ideal_start = wp_time - T_IMPACT
             
-            # Überlappungsschutz: Darf frühestens 0.6s nach dem LETZTEN Schuss anfangen
             if i > 0:
-                prev_wp_time = GUN_WAYPOINTS[i-1][0]
+                prev_wp_time = valid_shots[i-1]
                 actual_start = max(prev_wp_time + MIN_RECOIL, ideal_start)
             else:
                 actual_start = ideal_start
                 
             end_time = wp_time + (CLIP_DURATION - T_IMPACT)
             
-            # Sind wir im aktiven Fenster dieses Schusses?
             if actual_start <= t < end_time:
-                # Hier passiert die Magie: Wir berechnen die lokale Video-Zeit.
-                # Wenn wir durch den Überlappungsschutz später einsteigen (actual_start),
-                # rutscht local_t automatisch weiter ins Video rein -> Der Anfang wird weggeschnitten!
                 local_t = T_IMPACT + (t - wp_time)
-                
-                # Sicherheits-Check
                 if local_t < 0:
                     return None
                 return local_t
                 
-        # Wenn wir außerhalb aller Zeitfenster sind -> zeige das Standbild
         return None
 
     # 4. Bild- und Masken-Generator
@@ -442,13 +534,16 @@ def build_video():
             start_time = None
             ac_base = None
             
-            # Hat der POV-Spieler geschossen?
-            if SEQUENCE_POV[i] != -1:
+            val_pov = SEQUENCE_POV[i]
+            val_gegner = SEQUENCE_GEGNER[i]
+            
+            # Hat der POV-Spieler ECHT geschossen? (Ausschluss von "UP" / "DOWN")
+            if isinstance(val_pov, int) and val_pov >= 0:
                 start_time = wp_time - POV_AUDIO_IMPACT
                 ac_base = pov_audio_base
                 
             # Oder hat der Gegner geschossen?
-            elif SEQUENCE_GEGNER[i] != -1:
+            elif isinstance(val_gegner, int) and val_gegner >= 0:
                 start_time = wp_time - GEGNER_AUDIO_IMPACT
                 ac_base = gegner_audio_base
                 

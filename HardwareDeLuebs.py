@@ -450,14 +450,20 @@ class Klappscheibe:
                 else: #Einen doppelt getroffen
                     self.setVerloren_gegner(player_index)
             elif key == 2:
-                self.handle_bonus_modus()#player_index, welcherSchuss, player)                    
+                player_index = self.handle_bonus_modus()#player_index, welcherSchuss, player)                    
         return player_index 
         
     def handle_bonus_modus(self):#, player_index, welcherSchuss, player):
         #bonus_color = 'plum'
         player = None
-        if self.bonus_modus==1: player = self.players[0]
-        if self.bonus_modus==2: player = self.players[1]        
+        player_index = None
+        if self.bonus_modus == 1: 
+            player = self.players[0]
+            player_index = 0
+        elif self.bonus_modus == 2: 
+            player = self.players[1]
+            player_index = 1       
+        
         if self.bonus_modus>0 and player is not None:
             welcherSchuss = self.welcherSchuss(player.treffer)
             if welcherSchuss==2: #Bonus getroffen
@@ -469,7 +475,8 @@ class Klappscheibe:
                     self.SDeluebs.sound_win.play()
                 self.set_ueberlebt()
                 self.SetLED(2, True)
-                self.SDeluebs.root.update_idletasks()                                                    
+                self.SDeluebs.root.update_idletasks()    
+        return player_index
 
     def set_ueberlebt(self):
         if self.SM.survival_modus.get()==1:

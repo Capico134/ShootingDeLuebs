@@ -257,6 +257,7 @@ class HighscoreDeluebs:
         context_menu.add_command(label="Informationen", command=self.show_selected_entries, font=('Arial', 35))            
         context_menu.add_command(label="Highscore Log", command=self.show_selected_highscore_logs, font=('Arial', 35))
         context_menu.add_command(label="Export Video Config", command=self.export_video_config, font=('Arial', 35))
+        context_menu.add_command(label="Video generieren", command=self.generate_video, font=('Arial', 35))
         context_menu.add_command(label="Export Replay", command=self.export_match_to_yaml, font=('Arial', 35))
         context_menu.add_command(label="Replay abspielen", command=self.play_replay, font=('Arial', 35))
         context_menu.add_command(label="Löschen", command=self.delete_selected_entries, font=('Arial', 35))
@@ -881,62 +882,99 @@ class HighscoreDeluebs:
                             color_map_B = mapping_result['B']
 
                             # ==========================================
-                            # 3. JSON verarbeiten
+                            # 3. JSON verarbeiten (Die smarte Kamera-Regie)
                             # ==========================================
                             with open(log_path, "r", encoding="utf-8") as f:
                                 daten = json.load(f)
                             
                             timeline = daten.get("timeline", daten) if isinstance(daten, dict) else daten
-
-                            timing = []
-                            sequence_pov = []     # NEU: Nur für POV
-                            sequence_gegner = []  # NEU: Nur für Gegner
                             
-                            gold_l, gold_b = [], []
-                            blau_l, blau_b = [], []
+                            timing, sequence_pov, sequence_gegner = [], [], []
+                            gold_l, gold_b, blau_l, blau_b = [], [], [], []
                             
-                            start_t = None
+                            # --- NEU: Alle Action-States definieren ---
+                            ACTION_STATES = ["FEUER", "PLAYER1", "PLAYER2", "END", "WINNER"]
+                            
+                            is_action = False  # Ersetzt das alte "is_feuer"
+                            last_orig_t = 0.0
+                            t_video = 0.0
+                            last_action_end_video_t = 0.0
+                            first_action_done = False
                             
                             for ev in timeline:
                                 action = ev.get("a", "")
                                 m = ev.get("m", "")
+                                t_orig = ev.get("t", 0.0)
                                 
-                                is_feuer_start = (action == "state_change" and m == "FEUER" and start_t is None)
-                                is_shoot = (action == "shoot" and start_t is not None)
+                                # Reale Zeitdifferenz seit dem letzten Event
+                                delta_orig = max(0, t_orig - last_orig_t)
+                                last_orig_t = t_orig
                                 
-                                if is_feuer_start or is_shoot:
-                                    if is_feuer_start:
-                                        start_t = ev.get("t", 0.0)
-                                        timing.append(0.00)
-                                        sequence_pov.append(-1)
-                                        sequence_gegner.append(-1)
-                                    else:
-                                        akt_zeit = round(ev.get("t", 0.0) - start_t, 2)
-                                        shooter_idx = ev.get("p", -1)
-                                        target = ev.get("v", -1)
-                                        
-                                        timing.append(akt_zeit)
-                                        
-                                        # --- NEU: Saubere Trennung der Schüsse ---
-                                        if target != -1:
-                                            if shooter_idx == pov_player_idx:
-                                                sequence_pov.append(target)
-                                                sequence_gegner.append(-1)
-                                            else:
-                                                sequence_pov.append(-1)
-                                                sequence_gegner.append(target)
+                                # ======================================================
+                                # --- DER FIX FÜR DAS MASCHINENGEWEHR ---
+                                # Die Zeit MUSS im Video weiterlaufen, solange wir in der Action-Phase sind!
+                                # Egal ob jemand schießt, oder nur interne Wechsel (FEUER -> PLAYER2) passieren.
+                                if is_action:
+                                    t_video += delta_orig
+                                # ======================================================
+                                
+                                frame_hinzugefuegt = False
+                                
+                                # --- 1. STATUS WECHSEL ---
+                                if action == "state_change":
+                                    if m in ACTION_STATES and not is_action:
+                                        # ACTION STARTET! (Waffe hoch)
+                                        is_action = True
+                                        if not first_action_done:
+                                            t_video = 0.0
+                                            first_action_done = True
                                         else:
-                                            # Fehlschuss von irgendwem
-                                            sequence_pov.append(-1)
-                                            sequence_gegner.append(-1)
+                                            # STAUCHUNG: Exakt 3 Sekunden Pause
+                                            t_video = last_action_end_video_t + 3.0
                                             
-                                    # --- Die Farb-Zuweisung (bleibt identisch) ---
+                                        timing.append(round(t_video, 2))
+                                        sequence_pov.append("UP")       
+                                        sequence_gegner.append(-1)
+                                        frame_hinzugefuegt = True
+                                        
+                                    elif m not in ACTION_STATES and is_action:
+                                        # ACTION ENDET! (Waffe runter)
+                                        is_action = False
+                                        last_action_end_video_t = t_video
+                                        
+                                        timing.append(round(t_video, 2))
+                                        sequence_pov.append("DOWN")     
+                                        sequence_gegner.append(-1)
+                                        frame_hinzugefuegt = True
+
+                                # --- 2. SCHÜSSE ---
+                                elif action == "shoot" and is_action:
+                                    # t_video wurde ganz oben schon addiert, wir loggen nur noch den Frame!
+                                    timing.append(round(t_video, 2))
+                                    
+                                    shooter_idx = ev.get("p", -1)
+                                    target = ev.get("v", -1)
+                                    
+                                    if target != -1:
+                                        if shooter_idx == pov_player_idx:
+                                            sequence_pov.append(target)
+                                            sequence_gegner.append(-1)
+                                        else:
+                                            sequence_pov.append(-1)
+                                            sequence_gegner.append(target)
+                                    else:
+                                        sequence_pov.append(-1) 
+                                        sequence_gegner.append(-1)
+                                        
+                                    frame_hinzugefuegt = True
+                                
+                                # --- 3. FARBEN SPEICHERN (Streng 1:1 gekoppelt!) ---
+                                if frame_hinzugefuegt:
                                     L_list = ev.get("L", [])
                                     B_list = ev.get("B", [])
                                     
                                     gold_l.append(L_list if color_map_L == 0 else [])
                                     blau_l.append(L_list if color_map_L == 1 else [])
-                                    
                                     gold_b.append(B_list if color_map_B == 0 else [])
                                     blau_b.append(B_list if color_map_B == 1 else [])
                                     
@@ -953,30 +991,48 @@ class HighscoreDeluebs:
                             }
                             
                             # ==========================================
-                            # --- SMARTES & KOMPAKTES SPEICHERN ---
+                            # --- SMARTES & KOMPAKTES SPEICHERN (Die Matrix) ---
                             # ==========================================
                             export_dir = "./savegames/video_configs"
                             os.makedirs(export_dir, exist_ok=True)
                             export_path = os.path.join(export_dir, f"VIDEO_MATCH{match_id:06d}.json")
                             
-                            # Wir bauen das JSON zeilenweise selbst zusammen.
-                            # json.dumps() ohne indent schreibt die Listen perfekt in eine Zeile!
+                            # 1. Wir ermitteln für jede einzelne "Spalte" die benötigte Maximal-Breite
+                            num_cols = len(video_config["TIMING"])
+                            col_widths = []
+                            for i in range(num_cols):
+                                w = max(
+                                    len(json.dumps(video_config["TIMING"][i])),
+                                    len(json.dumps(video_config["SEQUENCE_POV"][i])),
+                                    len(json.dumps(video_config["SEQUENCE_GEGNER"][i])),
+                                    len(json.dumps(video_config["GOLD_LEUCHTEND"][i])),
+                                    len(json.dumps(video_config["GOLD_BLINKEND"][i])),
+                                    len(json.dumps(video_config["BLAU_LEUCHTEND"][i])),
+                                    len(json.dumps(video_config["BLAU_BLINKEND"][i]))
+                                )
+                                col_widths.append(w)
+                                
+                            # 2. Hilfsfunktion, die ein Array mit perfekten Abständen (Padding) in einen String gießt
+                            def format_row(arr):
+                                return "[" + ", ".join(f"{json.dumps(arr[i]):>{col_widths[i]}}" for i in range(len(arr))) + "]"
+                            
+                            # 3. JSON zusammensetzen
                             json_zeilen = [
                                 "{",
                                 f'    "MATCH_ID": {video_config["MATCH_ID"]},',
                                 f'    "POV_SPIELER": "{video_config["POV_SPIELER"]}",',
-                                f'    "TIMING": {json.dumps(video_config["TIMING"])},',
-                                f'    "SEQUENCE_POV": {json.dumps(video_config["SEQUENCE_POV"])},',
-                                f'    "SEQUENCE_GEGNER": {json.dumps(video_config["SEQUENCE_GEGNER"])},',
-                                f'    "GOLD_LEUCHTEND": {json.dumps(video_config["GOLD_LEUCHTEND"])},',
-                                f'    "GOLD_BLINKEND": {json.dumps(video_config["GOLD_BLINKEND"])},',
-                                f'    "BLAU_LEUCHTEND": {json.dumps(video_config["BLAU_LEUCHTEND"])},',
-                                f'    "BLAU_BLINKEND": {json.dumps(video_config["BLAU_BLINKEND"])}',
+                                f'    "TIMING":          {format_row(video_config["TIMING"])},',
+                                f'    "SEQUENCE_POV":    {format_row(video_config["SEQUENCE_POV"])},',
+                                f'    "SEQUENCE_GEGNER": {format_row(video_config["SEQUENCE_GEGNER"])},',
+                                f'    "GOLD_LEUCHTEND":  {format_row(video_config["GOLD_LEUCHTEND"])},',
+                                f'    "GOLD_BLINKEND":   {format_row(video_config["GOLD_BLINKEND"])},',
+                                f'    "BLAU_LEUCHTEND":  {format_row(video_config["BLAU_LEUCHTEND"])},',
+                                f'    "BLAU_BLINKEND":   {format_row(video_config["BLAU_BLINKEND"])}',
                                 "}"
                             ]
+                            
                             kompakter_json_text = "\n".join(json_zeilen)
                             
-                            # Datei atomar/sauber wegschreiben
                             with open(export_path, "w", encoding="utf-8") as f:
                                 f.write(kompakter_json_text)
                                 
@@ -1008,6 +1064,39 @@ class HighscoreDeluebs:
                             messagebox.showwarning("Fehlendes Replay", 
                                 f"Es wurde noch kein YAML für Match {match_id} exportiert.\n"
                                 "Bitte klicke zuerst auf 'Export Replay'.")
+                    break
+
+    def generate_video(self):
+        import subprocess
+        import sys
+        import os
+        
+        selected_items = self.tree.selection()
+        if not selected_items:
+            return
+            
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            
+            for entry in self.highscore_manager.data:
+                if entry["timestamp"] == values[5]:
+                    match_id = entry.get("match_id")
+                    if match_id:
+                        # Pfad prüfen (Aus Sicht der GUI im Hauptordner)
+                        check_path = os.path.join("savegames", "video_configs", f"VIDEO_MATCH{match_id:06d}.json")
+                        
+                        if os.path.exists(check_path):
+                            print(f"Starte Video-Rendering für Match {match_id}...")
+                            
+                            # Argument für das Skript (Aus Sicht des video_creator Ordners)
+                            config_argument = f"../savegames/video_configs/VIDEO_MATCH{match_id:06d}.json"
+                            
+                            subprocess.Popen([sys.executable, "video_creator.py", config_argument], cwd="video_creator")
+                        else:
+                            from tkinter import messagebox
+                            messagebox.showwarning("Fehlende Config", 
+                                f"Es wurde noch keine Video-Config für Match {match_id} exportiert.\n"
+                                "Bitte klicke zuerst im Menü auf 'Export Video Config'.")
                     break
 
     def save_score(self):

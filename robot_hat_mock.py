@@ -9,7 +9,7 @@ class LEDMockGUI:
         master.title("Schießstand Anzeige")
         master.geometry("800x319")
         master.configure(bg="gray95")
-        master.wm_attributes("-topmost", True)  # Immer im Vordergrund
+        #master.wm_attributes("-topmost", True)  # Immer im Vordergrund
         self.canvas = tk.Canvas(master, width=800, height=319, bg="gray95")
         self.canvas.pack()
         
