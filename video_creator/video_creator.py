@@ -26,6 +26,7 @@ with open(CONFIG_DATEI, "r", encoding="utf-8") as f:
     cfg = json.load(f)
 
 YOUTUBE_SHORTS_MODUS = cfg.get("YOUTUBE_SHORTS", False)
+FOCUS_WAYPOINTS_MODUS = cfg.get("FOCUS_WAYPOINTS", False) # <-- NEU
 
 # --- DER GENIALE TRICK FÜR DEN OUTPUT ---
 # Wir ersetzen einfach die Dateiendung. 
@@ -115,6 +116,8 @@ def find_target(start_idx, direction=1):
     return TARGETS[2]
 
 last_valid_pos = None
+last_valid_focus = None
+FOCUS_WAYPOINTS = [] # <-- NEU: Eigene Wegpunkte für die Schärfe
 
 for i, val in enumerate(SEQUENCE_POV):
     current_t = TIMING[i]
@@ -123,26 +126,40 @@ for i, val in enumerate(SEQUENCE_POV):
         tgt = find_target(i, 1)
         pos = (tgt[0], tgt[1] + HIDE_OFFSET_Y)
         GUN_WAYPOINTS.append((current_t, pos))
+        FOCUS_WAYPOINTS.append((current_t, pos))
         last_valid_pos = pos
+        last_valid_focus = pos
 
     elif val == "DOWN":
         tgt = find_target(i, -1)
         pos = (tgt[0], tgt[1] + HIDE_OFFSET_Y)
         
         if last_valid_pos:
-            # FIX Punkt 1: 1.5 Sekunden statt 0.8 sorgt für ein samtweiches Absenken!
             hold_time = max(0, current_t - 1.5)
             if len(GUN_WAYPOINTS) > 0 and hold_time > GUN_WAYPOINTS[-1][0]:
                 GUN_WAYPOINTS.append((hold_time, last_valid_pos))
+                FOCUS_WAYPOINTS.append((hold_time, last_valid_focus))
                 
         GUN_WAYPOINTS.append((current_t, pos))
+        FOCUS_WAYPOINTS.append((current_t, pos))
         last_valid_pos = pos
+        last_valid_focus = pos
 
     elif isinstance(val, (int, float)) and val >= 0:
-        # Normaler Schuss ODER Fake-Fahrt (z.B. 0.7)
         pos = get_target_coords(val)
         GUN_WAYPOINTS.append((current_t, pos))
         last_valid_pos = pos
+        
+        # --- DIE ZUWEISUNGS-WEICHE ---
+        if FOCUS_WAYPOINTS_MODUS:
+            # Wenn entkoppelt werden soll: Nur Ganzzahlen (echte Ziele) in den Fokus!
+            if isinstance(val, int):
+                FOCUS_WAYPOINTS.append((current_t, pos))
+                last_valid_focus = pos
+        else:
+            # Wenn nicht entkoppelt wird: Fokus läuft 1:1 synchron zur Waffe
+            FOCUS_WAYPOINTS.append((current_t, pos))
+            last_valid_focus = pos
 
 
 
@@ -179,17 +196,15 @@ STEP_TIME = MOVE_DURATION + AIM_DURATION
 # ==========================================
 # 2. DIE MATHEMATISCHE ENGINE (Bewegung)
 # ==========================================
+
 def get_current_target_info(t):
-    """Ermittelt Basis-Infos für Kamera UND Fokus basierend auf den ECHTEN Zeitstempeln!"""
-    # Vor dem allerersten Schuss (Wir ruhen auf dem ersten Ziel)
+    """Ermittelt Basis-Infos für die Waffe (und YouTube Shorts Kamera)"""
     if t < GUN_WAYPOINTS[0][0]:
         return GUN_WAYPOINTS[0][1], GUN_WAYPOINTS[0][1], 1.0 
         
-    # Nach dem allerletzten Schuss (Wir bleiben auf dem letzten Ziel)
     if t >= GUN_WAYPOINTS[-1][0]:
         return GUN_WAYPOINTS[-1][1], GUN_WAYPOINTS[-1][1], 1.0 
         
-    # Dazwischen: Finde heraus, auf welchem Wegstück wir gerade sind
     for i in range(len(GUN_WAYPOINTS) - 1):
         t_start, p_start = GUN_WAYPOINTS[i]
         t_end, p_end = GUN_WAYPOINTS[i+1]
@@ -197,18 +212,35 @@ def get_current_target_info(t):
         if t_start <= t < t_end:
             duration = t_end - t_start
             raw_progress = (t - t_start) / duration
-            
             # Weiches Anfahren und Abbremsen
             progress = raw_progress * raw_progress * (3 - 2 * raw_progress)
             return p_start, p_end, progress
             
     return GUN_WAYPOINTS[-1][1], GUN_WAYPOINTS[-1][1], 1.0
 
+def get_focus_target_info(t):
+    """Ermittelt Basis-Infos NUR für den Fokus (berücksichtigt die Entkopplung)"""
+    if t < FOCUS_WAYPOINTS[0][0]:
+        return FOCUS_WAYPOINTS[0][1], FOCUS_WAYPOINTS[0][1], 1.0 
+    if t >= FOCUS_WAYPOINTS[-1][0]:
+        return FOCUS_WAYPOINTS[-1][1], FOCUS_WAYPOINTS[-1][1], 1.0 
+        
+    for i in range(len(FOCUS_WAYPOINTS) - 1):
+        t_start, p_start = FOCUS_WAYPOINTS[i]
+        t_end, p_end = FOCUS_WAYPOINTS[i+1]
+        
+        if t_start <= t < t_end:
+            duration = t_end - t_start
+            raw_progress = (t - t_start) / duration
+            progress = raw_progress * raw_progress * (3 - 2 * raw_progress)
+            return p_start, p_end, progress
+            
+    return FOCUS_WAYPOINTS[-1][1], FOCUS_WAYPOINTS[-1][1], 1.0
+
 def get_camera_shake(t):
     """Wackelt NUR bei echten Schüssen, nicht bei UP/DOWN Fahrten!"""
     for i, wp_time in enumerate(TIMING):
         val = SEQUENCE_POV[i]
-        
         # Ist es ein echter Schuss (Zahl 0 bis 4)?
         if isinstance(val, int) and val >= 0:
             if wp_time < t < (wp_time + 0.2): 
@@ -217,46 +249,29 @@ def get_camera_shake(t):
                 shake_y = math.sin(time_since_shot * 100) * 6
                 shake_x = math.cos(time_since_shot * 80) * 3
                 return shake_x, shake_y
-                
-    return 0, 0 # Kein Shake bei UP, DOWN oder -1
+    return 0, 0 
 
-#SMART!!!!!!!!!!!!!!!!!!!!!!!!!!
-# True = Der Fokus gleitet in jedem Frame weich mit der Pistole mit.
-# False = "Sniper-Modus": Der Fokus springt hart auf das nächste Ziel.
 SMOOTH_FOCUS = False
+
 def get_focus_position(t):
     """Berechnet die exakte (X,Y) Position für die scharfe Maske."""
-    # Holt alle Infos aus unserer Master-Timing-Engine
-    start_pos, end_pos, progress = get_current_target_info(t)
+    # HIER ist die Weiche: Wir nutzen den neuen Fokus-Motor!
+    start_pos, end_pos, progress = get_focus_target_info(t)
     
     if SMOOTH_FOCUS:
-        # ---------------------------------------------------------
-        # MODUS A (True): Kamera-Autofokus (Weich)
-        # ---------------------------------------------------------
-        # Die Schärfe wandert Pixel für Pixel exakt mit dem Visier mit.
         x = start_pos[0] + (end_pos[0] - start_pos[0]) * progress
         y = start_pos[1] + (end_pos[1] - start_pos[1]) * progress
         return x, y
-        
     else:
-        # ---------------------------------------------------------
-        # MODUS B (False): Sniper-Blick (Harter Sprung)
-        # ---------------------------------------------------------
+        # Sniper-Modus
         if progress < 1.0:
-            # Wir sind gerade mitten im Schwenk.
-            # Der Fokus springt vorausschauend schon auf das Ziel, 
-            # zu dem die Pistole gerade unterwegs ist!
             return end_pos
         else:
-            # Wir sind angekommen und zielen/schießen gerade.
-            # Der Fokus ruht sicher auf dem aktuellen Ziel.
             return end_pos
 
-
-    
-
 def get_gun_position(t):
-    """Gleitet sanft, nutzt jetzt exakt dieselbe Motor-Logik wie der Fokus!"""
+    """Gleitet sanft, nutzt den normalen Motor für die Pistole!"""
+    # HIER nutzen wir weiterhin den normalen Waffen-Motor!
     start_pos, end_pos, progress = get_current_target_info(t)
     
     # 1. Basis-Koordinaten berechnen
@@ -272,14 +287,7 @@ def get_gun_position(t):
     final_x = base_x + breath_x + (base_shake_x * 2) + GUN_OFFSET_X
     final_y = base_y + breath_y + (base_shake_y * 2) + GUN_OFFSET_Y
     
-    # ==========================================
-    # --- MOVIEPY CRASH-SCHUTZ ---
-    # Wir lassen die Waffe niemals tiefer als Y=915 fallen. 
-    # So bleibt 1 Millimeter im Bild, MoviePy stürzt nicht ab, 
-    # und durch den Greenscreen sieht man trotzdem absolut nichts!
     final_y = min(final_y, 915)
-    # ==========================================
-    
     return (final_x, final_y)
 
 # ==========================================

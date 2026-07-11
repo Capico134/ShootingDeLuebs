@@ -630,8 +630,9 @@ ENTWICKLER- UND SONDERFUNKTIONEN
         # Ab hier: Hotkeys (Buchstaben), die NICHT feuern dürfen,
         # wenn man gerade einen Namen in ein Textfeld eintippt!
         # ==========================================================
-        if event.widget.winfo_class() in ('Entry', 'TEntry', 'Text'):
-            return 
+        if hasattr(event, 'widget') and hasattr(event.widget, 'winfo_class'):
+            if event.widget.winfo_class() in ('Entry', 'TEntry', 'Text'):
+                return  # <--- WICHTIG: Hier muss return bleiben!
 
 
         # ==========================================================

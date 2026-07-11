@@ -853,30 +853,34 @@ class HighscoreDeluebs:
                             def on_ok():
                                 mapping_result['L'] = var_l.get()
                                 mapping_result['B'] = var_b.get()
-                                mapping_result['SHORTS'] = var_shorts.get() # <-- NEU: Wert speichern
+                                mapping_result['SHORTS'] = var_shorts.get() 
+                                mapping_result['FOCUS'] = var_focus.get() # <-- NEU: Wert auslesen
                                 dialog.destroy()
                                 
                             dialog = tk.Toplevel(self.tree.master)
                             dialog.title("Video & LED-Farben konfigurieren")
-                            dialog.geometry("350x320") # <-- NEU: Etwas höher gemacht
+                            dialog.geometry("380x360") # <-- Etwas größer für 3 Optionen
                             dialog.transient(self.tree.master)
                             dialog.grab_set() 
                             
-                            var_l = tk.IntVar(value=0) # 0=Gold, 1=Blau
-                            var_b = tk.IntVar(value=1) # 0=Gold, 1=Blau
-                            var_shorts = tk.BooleanVar(value=False) # <-- NEU: Standardmäßig False
+                            var_l = tk.IntVar(value=0) # 0=Blau, 1=Gold, 2=Split
+                            var_b = tk.IntVar(value=1) # 0=Blau, 1=Gold, 2=Split
+                            var_shorts = tk.BooleanVar(value=False) 
+                            var_focus = tk.BooleanVar(value=True) # <-- NEU: Standardmäßig True (sauberer Blick)
                             
                             tk.Label(dialog, text="Farbe für LEUCHTENDE Ziele ('L'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
-                            tk.Radiobutton(dialog, text="Goldgelb", variable=var_l, value=0).pack()
-                            tk.Radiobutton(dialog, text="Blau", variable=var_l, value=1).pack()
+                            tk.Radiobutton(dialog, text="Blau (Alle)", variable=var_l, value=0).pack()
+                            tk.Radiobutton(dialog, text="Goldgelb (Alle)", variable=var_l, value=1).pack()
+                            tk.Radiobutton(dialog, text="Auto-Split (P1=Blau / P2=Gold)", variable=var_l, value=2).pack()
                             
                             tk.Label(dialog, text="Farbe für BLINKENDE Ziele ('B'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
-                            tk.Radiobutton(dialog, text="Goldgelb", variable=var_b, value=0).pack()
-                            tk.Radiobutton(dialog, text="Blau", variable=var_b, value=1).pack()
+                            tk.Radiobutton(dialog, text="Blau (Alle)", variable=var_b, value=0).pack()
+                            tk.Radiobutton(dialog, text="Goldgelb (Alle)", variable=var_b, value=1).pack()
+                            tk.Radiobutton(dialog, text="Auto-Split (P1=Blau / P2=Gold)", variable=var_b, value=2).pack()
                             
-                            # --- NEU: Die Shorts-Checkbox ---
-                            tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10) # Trennlinie
+                            tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10)
                             tk.Checkbutton(dialog, text="YouTube-Shorts Format (9:16)", variable=var_shorts, font=("Arial", 10, "bold"), fg="darkred").pack()
+                            tk.Checkbutton(dialog, text="Fokus von Zwischenzielen entkoppeln", variable=var_focus, font=("Arial", 10)).pack(pady=(5,0))
                             
                             tk.Button(dialog, text="Exportieren", command=on_ok, bg="lightgreen").pack(pady=15)
                             self.tree.master.wait_window(dialog)
@@ -885,7 +889,8 @@ class HighscoreDeluebs:
                             
                             color_map_L = mapping_result['L']
                             color_map_B = mapping_result['B']
-                            is_shorts = mapping_result['SHORTS'] # <-- NEU: Variable auslesen
+                            is_shorts = mapping_result['SHORTS']
+                            is_focus = mapping_result['FOCUS']  # <--- DIESE ZEILE HAT GEFEHLT!
 
                             # ==========================================
                             # 3. JSON verarbeiten (Die smarte Kamera-Regie)
@@ -898,64 +903,100 @@ class HighscoreDeluebs:
                             timing, sequence_pov, sequence_gegner = [], [], []
                             gold_l, gold_b, blau_l, blau_b = [], [], [], []
                             
-                            # --- NEU: Alle Action-States definieren ---
                             ACTION_STATES = ["FEUER", "PLAYER1", "PLAYER2", "END", "WINNER"]
                             
-                            is_action = False  # Ersetzt das alte "is_feuer"
+                            # --- NEU: State-Machine für die Kamera ---
+                            phase = "IDLE"  # Kann sein: "IDLE", "ACTION", "GRACE"
+                            
                             last_orig_t = 0.0
                             t_video = 0.0
-                            last_action_end_video_t = 0.0
-                            first_action_done = False
+                            last_down_t_video = 0.0
+                            first_up_done = False
+                            grace_timer = 0.0
+                            
+                            # Wir merken uns die letzten LEDs, falls die Waffe im "leeren" Raum abtaucht
+                            last_L = []
+                            last_B = []
                             
                             for ev in timeline:
                                 action = ev.get("a", "")
                                 m = ev.get("m", "")
                                 t_orig = ev.get("t", 0.0)
                                 
-                                # Reale Zeitdifferenz seit dem letzten Event
                                 delta_orig = max(0, t_orig - last_orig_t)
                                 last_orig_t = t_orig
                                 
                                 # ======================================================
-                                # --- DER FIX FÜR DAS MASCHINENGEWEHR ---
-                                # Die Zeit MUSS im Video weiterlaufen, solange wir in der Action-Phase sind!
-                                # Egal ob jemand schießt, oder nur interne Wechsel (FEUER -> PLAYER2) passieren.
-                                if is_action:
-                                    t_video += delta_orig
+                                # --- 1. ZEIT-MANAGEMENT & GRACE-TIMER (Nachspielzeit) ---
                                 # ======================================================
+                                if phase == "GRACE":
+                                    if delta_orig >= grace_timer:
+                                        # Die Frist ist exakt WÄHREND dieser Pause abgelaufen!
+                                        # Wir spulen genau zum Ablauf-Zeitpunkt vor und schicken die Waffe DOWN.
+                                        t_video += grace_timer
+                                        phase = "IDLE"
+                                        last_down_t_video = t_video
+                                        
+                                        timing.append(round(t_video, 2))
+                                        sequence_pov.append("DOWN")
+                                        sequence_gegner.append(-1)
+                                        
+                                        gold_l.append(last_L if color_map_L == 0 else [])
+                                        blau_l.append(last_L if color_map_L == 1 else [])
+                                        gold_b.append(last_B if color_map_B == 0 else [])
+                                        blau_b.append(last_B if color_map_B == 1 else [])
+                                        
+                                        # (Die restliche Zeit von delta_orig verfällt -> Stauchung!)
+                                    else:
+                                        # Frist läuft noch, Zeit läuft normal weiter
+                                        t_video += delta_orig
+                                        grace_timer -= delta_orig
+                                        
+                                elif phase == "ACTION":
+                                    # In der heißen Phase läuft die Zeit immer 1:1
+                                    t_video += delta_orig
+                                    
+                                # Aktuelle Lampen immer merken
+                                last_L = ev.get("L", [])
+                                last_B = ev.get("B", [])
                                 
                                 frame_hinzugefuegt = False
                                 
-                                # --- 1. STATUS WECHSEL ---
+                                # ======================================================
+                                # --- 2. STATUS WECHSEL ---
+                                # ======================================================
                                 if action == "state_change":
-                                    if m in ACTION_STATES and not is_action:
-                                        # ACTION STARTET! (Waffe hoch)
-                                        is_action = True
-                                        if not first_action_done:
-                                            t_video = 0.0
-                                            first_action_done = True
-                                        else:
-                                            # STAUCHUNG: Exakt 3 Sekunden Pause
-                                            t_video = last_action_end_video_t + 3.0
-                                            
-                                        timing.append(round(t_video, 2))
-                                        sequence_pov.append("UP")       
-                                        sequence_gegner.append(-1)
-                                        frame_hinzugefuegt = True
-                                        
-                                    elif m not in ACTION_STATES and is_action:
-                                        # ACTION ENDET! (Waffe runter)
-                                        is_action = False
-                                        last_action_end_video_t = t_video
-                                        
-                                        timing.append(round(t_video, 2))
-                                        sequence_pov.append("DOWN")     
-                                        sequence_gegner.append(-1)
-                                        frame_hinzugefuegt = True
+                                    if m in ACTION_STATES:
+                                        if phase in ["IDLE", "GRACE"]:
+                                            if phase == "GRACE":
+                                                # Falls das nächste FEUER noch innerhalb der Frist startet
+                                                phase = "ACTION"
+                                            elif phase == "IDLE":
+                                                # ACTION STARTET! (Waffe hoch)
+                                                phase = "ACTION"
+                                                if not first_up_done:
+                                                    t_video = 0.0
+                                                    first_up_done = True
+                                                else:
+                                                    # STAUCHUNG: Exakt 3 Sekunden Pause
+                                                    t_video = last_down_t_video + 3.0
+                                                    
+                                                timing.append(round(t_video, 2))
+                                                sequence_pov.append("UP")       
+                                                sequence_gegner.append(-1)
+                                                frame_hinzugefuegt = True
+                                                
+                                    elif m not in ACTION_STATES:
+                                        if phase == "ACTION":
+                                            # ACTION ENDET offiziell (z.B. Wechsel auf LADEN).
+                                            # Aber die Waffe bleibt OBEN! Wir starten nur die Gnadenfrist.
+                                            phase = "GRACE"
+                                            grace_timer = 1.5
 
-                                # --- 2. SCHÜSSE ---
-                                elif action == "shoot" and is_action:
-                                    # t_video wurde ganz oben schon addiert, wir loggen nur noch den Frame!
+                                # ======================================================
+                                # --- 3. SCHÜSSE ---
+                                # ======================================================
+                                elif action == "shoot" and phase in ["ACTION", "GRACE"]:
                                     timing.append(round(t_video, 2))
                                     
                                     shooter_idx = ev.get("p", -1)
@@ -973,21 +1014,71 @@ class HighscoreDeluebs:
                                         sequence_gegner.append(-1)
                                         
                                     frame_hinzugefuegt = True
+                                    
+                                    # WICHTIG: Wenn in der Nachspielzeit geschossen wird, 
+                                    # verlängern wir die Haltezeit der Waffe wieder auf volle 1.5 Sekunden!
+                                    if phase == "GRACE":
+                                        grace_timer = 1.5
                                 
-                                # --- 3. FARBEN SPEICHERN (Streng 1:1 gekoppelt!) ---
+                                # ======================================================
+                                # --- 4. FARBEN SPEICHERN (Die clevere Sortier-Maschine) ---
+                                # ======================================================
                                 if frame_hinzugefuegt:
                                     L_list = ev.get("L", [])
                                     B_list = ev.get("B", [])
                                     
-                                    gold_l.append(L_list if color_map_L == 0 else [])
-                                    blau_l.append(L_list if color_map_L == 1 else [])
-                                    gold_b.append(B_list if color_map_B == 0 else [])
-                                    blau_b.append(B_list if color_map_B == 1 else [])
+                                    def process_colors(leds, mode):
+                                        if mode == 0: return [], leds       # 0 = Alles Blau, kein Gold
+                                        if mode == 1: return leds, []       # 1 = Alles Gold, kein Blau
+                                        
+                                        # Modus 2: Der Auto-Split
+                                        g_out, b_out = [], []
+                                        
+                                        # Wer hat gerade die Mehrheit (für Ziel 2)?
+                                        g_count = sum(1 for x in leds if x in [0, 1])
+                                        b_count = sum(1 for x in leds if x in [3, 4])
+                                        
+                                        for x in leds:
+                                            if x in [0, 1]: 
+                                                g_out.append(x)
+                                            elif x in [3, 4]: 
+                                                b_out.append(x)
+                                            elif x == 2:
+                                                # Das mittlere Ziel bekommt die Farbe des Mehrheits-Besitzers!
+                                                if g_count > b_count: 
+                                                    g_out.append(x)
+                                                else: 
+                                                    b_out.append(x) # Blau gewinnt auch bei Gleichstand
+                                                    
+                                        return g_out, b_out
+                                        
+                                    # L und B durch die Maschine jagen
+                                    cur_gold_l, cur_blau_l = process_colors(L_list, color_map_L)
+                                    cur_gold_b, cur_blau_b = process_colors(B_list, color_map_B)
+                                    
+                                    gold_l.append(cur_gold_l)
+                                    blau_l.append(cur_blau_l)
+                                    gold_b.append(cur_gold_b)
+                                    blau_b.append(cur_blau_b)
+                                    
+                            # ======================================================
+                            # --- 5. FINISH (Falls Match in Action/Grace endet) ---
+                            # ======================================================
+                            if phase in ["ACTION", "GRACE"]:
+                                t_video += 1.5
+                                timing.append(round(t_video, 2))
+                                sequence_pov.append("DOWN")
+                                sequence_gegner.append(-1)
+                                gold_l.append([])
+                                blau_l.append([])
+                                gold_b.append([])
+                                blau_b.append([])
                                     
                             video_config = {
                                 "MATCH_ID": match_id,
                                 "POV_SPIELER": entry.get('spieler') if pov_num == 1 else entry.get('spieler2'),
                                 "YOUTUBE_SHORTS": is_shorts,  # <-- HIER die Variable einsetzen!
+                                "FOCUS_WAYPOINTS": is_focus, # <-- NEU
                                 "TIMING": timing,
                                 "SEQUENCE_POV": sequence_pov,
                                 "SEQUENCE_GEGNER": sequence_gegner,
@@ -1030,6 +1121,7 @@ class HighscoreDeluebs:
                                 f'    "MATCH_ID": {video_config["MATCH_ID"]},',
                                 f'    "POV_SPIELER": "{video_config["POV_SPIELER"]}",',
                                 f'    "YOUTUBE_SHORTS": {"true" if video_config["YOUTUBE_SHORTS"] else "false"},',
+                                f'    "FOCUS_WAYPOINTS": {"true" if video_config["FOCUS_WAYPOINTS"] else "false"},',
                                 f'    "TIMING":          {format_row(video_config["TIMING"])},',
                                 f'    "SEQUENCE_POV":    {format_row(video_config["SEQUENCE_POV"])},',
                                 f'    "SEQUENCE_GEGNER": {format_row(video_config["SEQUENCE_GEGNER"])},',
