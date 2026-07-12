@@ -392,31 +392,44 @@ class ShootingDeluebs:
     def zeige_hilfe_fenster(self):
         hilfe_win = tk.Toplevel(self.root)
         hilfe_win.title("Hilfe & Tastenkombinationen")
-        hilfe_win.geometry("900x700")
-        hilfe_win.configure(bg="gray90")
-        # Macht das Fenster modal (blockiert das Hauptfenster, bis es geschlossen wird)
+        
+        # Perfekt für Touch – etwas größer und im edlen Dunkelgrau
+        hilfe_win.geometry("1100x800")
+        hilfe_win.configure(bg="gray15")
+        
         hilfe_win.transient(self.root)
         hilfe_win.grab_set()
 
-        titel = tk.Label(hilfe_win, text="Tastenkombinationen & Steuerung", font=("Arial", 24, "bold"), bg="gray90")
-        titel.pack(pady=20)
+        # Große, gut lesbare Überschrift in Weiß
+        titel = tk.Label(hilfe_win, text="Tastenkombinationen & Steuerung", font=("Arial", 26, "bold"), bg="gray15", fg="white")
+        titel.pack(pady=8)
 
-        text_frame = tk.Frame(hilfe_win, bg="gray90")
-        text_frame.pack(expand=True, fill="both", padx=30, pady=10)
+        text_frame = tk.Frame(hilfe_win, bg="gray15")
+        text_frame.pack(expand=True, fill="both", padx=40, pady=10)
 
-        scrollbar = tk.Scrollbar(text_frame)
+        # Die Scrollbar farblich dezent anpassen
+        scrollbar = tk.Scrollbar(text_frame, bg="gray30", elementborderwidth=0)
         scrollbar.pack(side="right", fill="y")
 
-        # ==========================================================
-        # --- NEU: tabs=("250", "left") zwingt \t exakt auf 250 Pixel ---
-        # ==========================================================
-        text_widget = tk.Text(text_frame, font=("Arial", 16), bg="white", wrap="word", padx=20, pady=20, yscrollcommand=scrollbar.set, tabs=("190", "left"))
+        # Text-Widget im "Dark-Mode" – Dunkler Hintergrund, weiße Schrift
+        text_widget = tk.Text(
+            text_frame, 
+            font=("Arial", 16), 
+            bg="gray20", 
+            fg="white", 
+            insertbackground="white", # Cursor-Farbe, falls nötig
+            wrap="word", 
+            padx=25, 
+            pady=25, 
+            yscrollcommand=scrollbar.set, 
+            tabs=("190", "left"),
+            borderwidth=0,
+            highlightthickness=0
+        )
         text_widget.pack(side="left", expand=True, fill="both")
         scrollbar.config(command=text_widget.yview)
 
-        # ==========================================================
-        # --- NEU: Alle Leerzeichen vor dem Doppelpunkt sind nun ein \t ---
-        # ==========================================================
+        # Dein Hilfetext
         hilfe_text = """ALLGEMEINE STEUERUNG
 -----------------------------------------
 • Linke Strg-Taste\t: Start - MATCH
@@ -425,41 +438,71 @@ class ShootingDeluebs:
 
 OBERFLÄCHE & HIGHSCORES
 -----------------------------------------
-• Tooltips\t: Bewege die Maus über ein Element (oder halte es am Touchscreen gedrückt), um Erklärungen zu sehen.
-• Programmanzeige\t: Das große Feld mit dem Programmnamen unter der Statusanzeige (z.B. Sicherheit) ist ein Button!
-• Highscores\t: Ein Klick auf die Programmanzeige öffnet die Bestenliste. Hovern zeigt die Info zum Programm.
+• Tooltips\t: Element mit der Maus berühren (oder gedrückt halten), um Erklärungen zu sehen.
+• Highscores\t: Aufrufbar per Klick auf die große Programmanzeige (Hauptfenster) sowie über die Buttons hier und unter "Alle Programme...".
+• Alle Programme\t: Der Button unten rechts öffnet das Touch-Raster zur Auswahl aller Schießprogramme.
 
 PROGRAMMAUSWAHL (mit Tastatur)
 -----------------------------------------
 • F1 bis F12\t: Lädt Programm 1 bis 12
 • Shift + F1-F12\t: Lädt Programm 13 bis 24
+• Ab Programm 25\t: Können ausschließlich über das Touch-Raster ("Alle Programme...") gewählt werden.
 
 ENTWICKLER- UND SONDERFUNKTIONEN
 -----------------------------------------
 • Taste 'T'\t: Ladezeit auf 1-Minute setzen
 • Taste 'D'\t: Dev-Mode (Fast-Forward, nur 2 Zyklen)
-• Taste 'S'\t: Starte Loop, um die Spielernamen automatisch zu aktualisieren in Verbindung mit Championship DeLübs
 • Taste '<'\t: Annulliere aktuellen Zyklus (Spieler 1)
 • Taste '-'\t: Annulliere aktuellen Zyklus (Spieler 2)"""
         
         text_widget.insert("1.0", hilfe_text)
 
-        # ==========================================================
-        # --- NEU: lmargin2 auf 265 Pixel gesetzt ---
-        # (250 Pixel für den Tab + ca. 15 Pixel für ": " = 265)
-        # So bricht der Text rechts bündig unter dem vorherigen Text um!
-        # ==========================================================
+        # Einrückung für den Umbruch bei Listenpunkten
         text_widget.tag_configure("bullet_indent", lmargin1=0, lmargin2=205)
         
         for i, line in enumerate(hilfe_text.split('\n')):
             if line.startswith('•'):
                 text_widget.tag_add("bullet_indent", f"{i+1}.0", f"{i+1}.end")
 
-        # Schreibschutz wieder aktivieren
         text_widget.configure(state='disabled') 
 
-        schliessen_btn = tk.Button(hilfe_win, text="Schließen", font=("Arial", 20), bg="#FBD975", command=hilfe_win.destroy)
-        schliessen_btn.pack(pady=20, ipadx=40, ipady=10)
+        # --- ZUERST: Die Button-Leiste unten platzieren (bevor das Textfeld expandiert) ---
+        bottom_frame = tk.Frame(hilfe_win, bg="gray15")
+        # side="bottom" sorgt dafür, dass sie unten verankert wird
+        bottom_frame.pack(side="bottom", fill="x", pady=15) 
+
+        # Highscore-Button (links)
+        highscore_btn = tk.Button(
+            bottom_frame, 
+            text="Highscore", 
+            font=("Arial", 22, "bold"), 
+            bg="gray35", 
+            fg="white", 
+            activebackground="gray50", 
+            relief="raised",
+            command=lambda: [self.HSobjekt.show_highscore_window(), hilfe_win.destroy()]
+        )
+        highscore_btn.pack(side="left", expand=True, ipadx=60, ipady=12, padx=30)
+
+        # Schließen-Button (rechts)
+        schliessen_btn = tk.Button(
+            bottom_frame, 
+            text="Schließen", 
+            font=("Arial", 22, "bold"), 
+            bg="#FBD975", 
+            fg="black", 
+            activebackground="darkorange", 
+            relief="raised",
+            command=hilfe_win.destroy
+        )
+        schliessen_btn.pack(side="right", expand=True, ipadx=60, ipady=12, padx=30)
+
+        # --- DANACH: Das Textfeld packen ---
+        # Jetzt füllt das Textfeld genau den Raum aus, der über den Buttons noch übrig ist
+        text_frame.pack(expand=True, fill="both", padx=40, pady=10)
+
+       # schliessen_btn = tk.Button(hilfe_win, text="Schließen", font=("Arial", 20), bg="#FBD975", command=hilfe_win.destroy)
+       # schliessen_btn.pack(pady=20, ipadx=40, ipady=10)
 
     def zeige_programm_raster(self):
         if not self.SMobjekt.get_state()==GameState.SICHERHEIT: return
@@ -522,9 +565,33 @@ ENTWICKLER- UND SONDERFUNKTIONEN
         for i in range(4): # Spalten bleiben bei 4
             grid_frame.columnconfigure(i, weight=1)
 
-        # Großer Abbrechen-Button ganz unten, falls man sich verklickt hat
-        schliessen_btn = tk.Button(raster_win, text="Zurück zum Hauptmenü", font=("Arial", 22, "bold"), bg="gray35", fg="white", activebackground="gray50", command=raster_win.destroy)
-        schliessen_btn.pack(pady=25, ipadx=60, ipady=12)
+        # --- Unten: Button-Leiste für Navigation & Highscore ---
+        bottom_frame = tk.Frame(raster_win, bg="gray15")
+        bottom_frame.pack(side="bottom", fill="x", pady=25)
+
+        # Highscore-Button (links) - Öffnet Highscore und schließt dieses Fenster
+        highscore_btn = tk.Button(
+            bottom_frame, 
+            text="Highscore", 
+            font=("Arial", 22, "bold"), 
+            bg="gray35", 
+            fg="white", 
+            activebackground="gray50", 
+            command=lambda: [self.HSobjekt.show_highscore_window(), raster_win.destroy()]
+        )
+        highscore_btn.pack(side="left", expand=True, ipadx=60, ipady=12, padx=20)
+
+        # Schließen-Button (rechts) - Zurück ohne Aktion
+        schliessen_btn = tk.Button(
+            bottom_frame, 
+            text="Zurück zum Hauptmenü", 
+            font=("Arial", 22, "bold"), 
+            bg="gray35", 
+            fg="white", 
+            activebackground="gray50", 
+            command=raster_win.destroy
+        )
+        schliessen_btn.pack(side="right", expand=True, ipadx=60, ipady=12, padx=20)
 
 
 

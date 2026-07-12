@@ -116,7 +116,7 @@ class LEDMockGUI:
         # 1. Größe der Krone festlegen
         # Der aktive Fokus-Spieler bekommt einen etwas größeren Stern
         if player_id == self.fokus_player and player_id is not None:
-            o_rad = 39  # Etwas größer als vorher
+            o_rad = 44  # Etwas größer als vorher
             i_rad = 24
         else:
             o_rad = 35  # Etwas kleiner als Standard
