@@ -26,19 +26,51 @@ with open(CONFIG_DATEI, "r", encoding="utf-8") as f:
     cfg = json.load(f)
 
 YOUTUBE_SHORTS_MODUS = cfg.get("YOUTUBE_SHORTS", False)
-FOCUS_WAYPOINTS_MODUS = cfg.get("FOCUS_WAYPOINTS", False) # <-- NEU
+FOCUS_WAYPOINTS_MODUS = cfg.get("FOCUS_WAYPOINTS", False)
 
-# --- DER GENIALE TRICK FÜR DEN OUTPUT ---
-# Wir ersetzen einfach die Dateiendung. 
-# Aus "../savegames/video_configs/VIDEO_MATCH000383.json" 
-# wird automatisch "../savegames/video_configs/VIDEO_MATCH000383_Render.mp4"
+# --- NEU: Die Waffe aus der JSON auslesen (Fallback auf "SteyrLP50", falls nichts drinsteht) ---
+WAFFEN_PROFIL = cfg.get("WAFFEN_PROFIL", "SteyrLP50")
+
 OUTPUT_NAME = CONFIG_DATEI.replace(".json", "_Render.mp4")
 print(f"OUTPUT_NAME: {OUTPUT_NAME}")
 
 BG_IMAGE = "Schiessstand_upscayl_3x_upscayl-standard-4x.png"
 
-#ALT!!!!
-#GUN_VIDEO = "Precision_Air_Pistol_Shot_Simulation.mp4"
+# ==========================================
+# WAFFEN-PROFILE (Alle Einstellungen auf einen Blick)
+# ==========================================
+PROFILES = {
+    "RedDot": {
+        "TARGETS": [(2138, 440), (1649, 442), (1173, 443), (697, 443), (212, 443)],
+        "IDLE_IMG": "standbild.png",
+        "SHOOT_VID": "schuss.mp4",
+        "T_IMPACT": 2.6,
+        "CLIP_DURATION": 4.75,
+        "MIN_RECOIL": 0.6,
+        "ZOOM": 1.0,           # 1.0 = Originalgröße
+        "OFFSET_X": -155-460,  # Individueller Offset für die Waffe
+        "OFFSET_Y": -70
+    },
+    "SteyrLP50": {
+        "TARGETS": [(2138, 440), (1649, 442), (1173, 443), (697, 443), (212, 443)],
+        "IDLE_IMG": "standbild_SteyrLP50.png",
+        "SHOOT_VID": "schuss_SteyrLP50.mp4",
+        "T_IMPACT": 1.50,
+        "CLIP_DURATION": 2.7,
+        "MIN_RECOIL": 0.6,
+        "ZOOM": 1.3,          # <-- HIER: 25% reingezoomt!
+        "OFFSET_X": -155-460-205,  # Ggf. anpassen, wenn das Bild durch den Zoom verrutscht
+        "OFFSET_Y": -70+39
+    }
+}
+
+# Das aktive Profil laden
+active_gun = PROFILES.get(WAFFEN_PROFIL, PROFILES["RedDot"])
+
+TARGETS = active_gun["TARGETS"]
+GUN_OFFSET_X = active_gun["OFFSET_X"]
+GUN_OFFSET_Y = active_gun["OFFSET_Y"]
+
 
 # --- OPTIONALE AUDIO-DATEIEN ---
 USE_CUSTOM_AUDIO = True  # True = Nutze WAVs, False = Nutze Ton aus schuss.mp4
@@ -61,13 +93,21 @@ BLAU_LEUCHTEND = cfg["BLAU_LEUCHTEND"]
 BLAU_BLINKEND = cfg["BLAU_BLINKEND"]
 
 ## Koordinaten der 5 Ziele auf deinem Hintergrund (X, Y)
-TARGETS = [
-    (2138, 440), # Ziel 0 (ganz links)
-    (1649, 442), # Ziel 1
-    (1173, 443), # Ziel 2 (Mitte)
-    (697, 443), # Ziel 3
-    (212, 443) # Ziel 4 (ganz rechts)
-]
+#TARGETS = [
+#    (2138, 440), # Ziel 0 (ganz links)
+#    (1649, 442), # Ziel 1
+#    (1173, 443), # Ziel 2 (Mitte)
+#    (697, 443), # Ziel 3
+#    (212, 443) # Ziel 4 (ganz rechts)
+#]
+
+#TARGETS = [
+#    (2128, 430), # Ziel 0 (ganz links)
+#    (1639, 432), # Ziel 1
+#    (1163, 433), # Ziel 2 (Mitte)
+#    (687, 433), # Ziel 3
+#    (202, 433) # Ziel 4 (ganz rechts)
+#]
 
 
 # --- NEU: Koordinaten auch für Kommazahlen (Fake-Bewegungen) berechnen ---
@@ -163,30 +203,10 @@ for i, val in enumerate(SEQUENCE_POV):
 
 
 
-###########ALTE DATEN###########
-#TIMING =      [0.00, 2.52, 4.18, 4.46, 6.28, 7.24, 8.59, 9.92]
-#SEQUENCE =    [3,    0,   -1,    3,    2,   -1,    0,   -1]
-## Listen gehören jetzt fest zu den Spielern
-#LEDS_POV =    [[0],  [3],  [3],  [2],  [0], [0],  [4],  [4]]
-#LEDS_GEGNER = [[2],  [2],  [4],  [4],  [4], [2],  [2],  [3]]
-## --- NEU: Style-Schalter ---
-#POV_BLINKT = True       # True = POV-Spieler blinkt, False = Dauerlicht
-#GEGNER_BLINKT = False   # True = Gegner blinkt, False = Dauerlicht
-## Einmalige Vorberechnung für die Kamera (Ignoriert Andreas' -1 Treffer)
-#GUN_WAYPOINTS = []
-#for i in range(len(TIMING)):
-#    if SEQUENCE[i] != -1:
-#        GUN_WAYPOINTS.append((TIMING[i], TARGETS[SEQUENCE[i]]))
-
-
 # Offset: Wie weit ist der rote Punkt vom Video-Mittelpunkt entfernt?
 # (Musst du ggf. anpassen, damit das Visier genau auf dem Ziel liegt)
-GUN_OFFSET_X = -155-460
-GUN_OFFSET_Y = -70
-
-#SPEED_FAKTOR = 1.5
-#SPEED_FAKTOR = 2
-
+#GUN_OFFSET_X = -155-460
+#GUN_OFFSET_Y = -70
 # Zeit-Parameter
 START_DELAY = 2.10#/SPEED_FAKTOR      # Wartezeit vor dem ersten Sprung
 MOVE_DURATION = 2.0#/SPEED_FAKTOR   # Wie lange dauert der Schwenk (Torquen)? 2.8
@@ -212,8 +232,25 @@ def get_current_target_info(t):
         if t_start <= t < t_end:
             duration = t_end - t_start
             raw_progress = (t - t_start) / duration
-            # Weiches Anfahren und Abbremsen
-            progress = raw_progress * raw_progress * (3 - 2 * raw_progress)
+            
+            # =======================================================
+            # --- DIE NEUE DYNAMISCHE KINEMATIK (Physik-Engine) ---
+            # =======================================================
+            if p_end[1] > p_start[1] + 500:
+                # 1. Waffe geht DOWN (Schwerkraft -> Cubic Ease-In)
+                # Startet ganz sanft und fällt dann exponentiell schneller nach unten.
+                progress = raw_progress ** 3
+                
+            elif p_start[1] > p_end[1] + 500:
+                # 2. Waffe geht UP (Muskelkraft -> Cubic Ease-Out)
+                # Reißt extrem schnell aus dem Off nach oben und bremst sanft im Ziel ein.
+                progress = 1.0 - ((1.0 - raw_progress) ** 3)
+                
+            else:
+                # 3. Normaler Schwenk (Körperdrehung -> Smoothstep Ease-In-Out)
+                # Sanftes Anfahren und sanftes Abbremsen.
+                progress = raw_progress * raw_progress * (3.0 - 2.0 * raw_progress)
+                
             return p_start, p_end, progress
             
     return GUN_WAYPOINTS[-1][1], GUN_WAYPOINTS[-1][1], 1.0
@@ -232,7 +269,15 @@ def get_focus_target_info(t):
         if t_start <= t < t_end:
             duration = t_end - t_start
             raw_progress = (t - t_start) / duration
-            progress = raw_progress * raw_progress * (3 - 2 * raw_progress)
+            
+            # Fokus nutzt die identische Physik, damit Schärfe und Waffe exakt synchron laufen!
+            if p_end[1] > p_start[1] + 500:
+                progress = raw_progress ** 3
+            elif p_start[1] > p_end[1] + 500:
+                progress = 1.0 - ((1.0 - raw_progress) ** 3)
+            else:
+                progress = raw_progress * raw_progress * (3.0 - 2.0 * raw_progress)
+                
             return p_start, p_end, progress
             
     return FOCUS_WAYPOINTS[-1][1], FOCUS_WAYPOINTS[-1][1], 1.0
@@ -447,21 +492,54 @@ def build_video():
         vfx.MaskColor(color=[57, 177, 65], threshold=88, stiffness=8)
     ]
     
-    # 2. Assets laden und vorbereiten
-    idle_clip = (ImageClip("standbild.png")
+    # 2. Assets dynamisch aus dem Waffen-Profil laden
+    idle_clip = (ImageClip(active_gun["IDLE_IMG"])
                  .with_duration(total_duration)
                  .with_effects(gun_effects))
-    
-    # NEU: Wir laden das KOMPLETTE Video (0 bis 4.75s)
-    recoil_clip = (VideoFileClip("schuss.mp4")
+                 
+    recoil_clip = (VideoFileClip(active_gun["SHOOT_VID"])
                    .without_audio()
                    .with_effects(gun_effects))
+                   
+    # --- NEU: DEN ZOOM ANWENDEN ---
+    if active_gun["ZOOM"] != 1.0:
+        idle_clip = idle_clip.resized(active_gun["ZOOM"])
+        recoil_clip = recoil_clip.resized(active_gun["ZOOM"])
+
+    # 3. Parameter aus dem Profil auslesen
+    T_IMPACT = active_gun["T_IMPACT"]
+    CLIP_DURATION = active_gun["CLIP_DURATION"]
+    MIN_RECOIL = active_gun["MIN_RECOIL"]
     
-    # --- Die Parameter deiner Animation ---
-    T_IMPACT = 2.6          # Bei welcher Sekunde im Video fällt der Schuss?
-    CLIP_DURATION = 4.75    # Wie lang ist das schuss.mp4 insgesamt?
-    MIN_RECOIL = 0.6        # Wie lange (in Sekunden) muss der Rückstoß des 
+#    # 2. Assets laden und vorbereiten
+#    idle_clip = (ImageClip("standbild.png")
+#                 .with_duration(total_duration)
+#                 .with_effects(gun_effects))
+#    # NEU: Wir laden das KOMPLETTE Video (0 bis 4.75s)
+#    recoil_clip = (VideoFileClip("schuss.mp4")
+#                   .without_audio()
+#                   .with_effects(gun_effects))
+#    # --- Die Parameter deiner Animation ---
+#    T_IMPACT = 2.6          # Bei welcher Sekunde im Video fällt der Schuss?
+#    CLIP_DURATION = 4.75    # Wie lang ist das schuss.mp4 insgesamt?
+#    MIN_RECOIL = 0.6        # Wie lange (in Sekunden) muss der Rückstoß des 
                             # VORHERIGEN Schusses mindestens laufen, bevor er abgebrochen wird?
+                            
+#    # 2. Assets laden und vorbereiten
+#    idle_clip = (ImageClip("standbild_SteyrLP50.png")
+#                 .with_duration(total_duration)
+#                 .with_effects(gun_effects))
+#    # NEU: Wir laden das KOMPLETTE Video (0 bis 4.75s)
+#    recoil_clip = (VideoFileClip("schuss_SteyrLP50.mp4")
+#                   .without_audio()
+#                   .with_effects(gun_effects))
+#    # --- Die Parameter deiner Animation ---
+#    T_IMPACT = 1.50          # Bei welcher Sekunde im Video fällt der Schuss?
+#    CLIP_DURATION = 3.00    # Wie lang ist das schuss.mp4 insgesamt?
+#    MIN_RECOIL = 0.6        # Wie lange (in Sekunden) muss der Rückstoß des 
+#                           # VORHERIGEN Schusses mindestens laufen, bevor er abgebrochen wird?
+
+                            
 
     # 3. Die professionelle Time-Warp-Logik
     def get_active_gun_clip_time(t):

@@ -846,7 +846,7 @@ class HighscoreDeluebs:
                             pov_player_idx = pov_num - 1
                             
                             # ==========================================
-                            # 2. Abfrage: Color-Mapping & Video-Format
+                            # 2. Abfrage: Color-Mapping & Video-Optionen
                             # ==========================================
                             mapping_result = {}
                             
@@ -854,19 +854,21 @@ class HighscoreDeluebs:
                                 mapping_result['L'] = var_l.get()
                                 mapping_result['B'] = var_b.get()
                                 mapping_result['SHORTS'] = var_shorts.get() 
-                                mapping_result['FOCUS'] = var_focus.get() # <-- NEU: Wert auslesen
+                                mapping_result['FOCUS'] = var_focus.get() 
+                                mapping_result['WAFFE'] = var_weapon.get() # <-- NEU: Waffe speichern
                                 dialog.destroy()
                                 
                             dialog = tk.Toplevel(self.tree.master)
                             dialog.title("Video & LED-Farben konfigurieren")
-                            dialog.geometry("380x360") # <-- Etwas größer für 3 Optionen
+                            dialog.geometry("380x440") # <-- Etwas höher für die Waffen-Auswahl
                             dialog.transient(self.tree.master)
                             dialog.grab_set() 
                             
                             var_l = tk.IntVar(value=0) # 0=Blau, 1=Gold, 2=Split
                             var_b = tk.IntVar(value=1) # 0=Blau, 1=Gold, 2=Split
                             var_shorts = tk.BooleanVar(value=False) 
-                            var_focus = tk.BooleanVar(value=True) # <-- NEU: Standardmäßig True (sauberer Blick)
+                            var_focus = tk.BooleanVar(value=True) 
+                            var_weapon = tk.StringVar(value="RedDot") # <-- NEU: Standardwaffe
                             
                             tk.Label(dialog, text="Farbe für LEUCHTENDE Ziele ('L'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
                             tk.Radiobutton(dialog, text="Blau (Alle)", variable=var_l, value=0).pack()
@@ -878,6 +880,16 @@ class HighscoreDeluebs:
                             tk.Radiobutton(dialog, text="Goldgelb (Alle)", variable=var_b, value=1).pack()
                             tk.Radiobutton(dialog, text="Auto-Split (P1=Blau / P2=Gold)", variable=var_b, value=2).pack()
                             
+                            # --- NEU: Waffenauswahl ---
+                            tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10)
+                            tk.Label(dialog, text="Waffen-Profil / Animation:", font=("Arial", 10, "bold")).pack(pady=(0,5))
+                            
+                            waffen_frame = tk.Frame(dialog)
+                            waffen_frame.pack()
+                            tk.Radiobutton(waffen_frame, text="Red Dot", variable=var_weapon, value="RedDot").pack(side="left", padx=10)
+                            tk.Radiobutton(waffen_frame, text="Steyr LP50", variable=var_weapon, value="SteyrLP50").pack(side="left", padx=10)
+                            
+                            # --- Checkboxen ---
                             tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10)
                             tk.Checkbutton(dialog, text="YouTube-Shorts Format (9:16)", variable=var_shorts, font=("Arial", 10, "bold"), fg="darkred").pack()
                             tk.Checkbutton(dialog, text="Fokus von Zwischenzielen entkoppeln", variable=var_focus, font=("Arial", 10)).pack(pady=(5,0))
@@ -890,7 +902,8 @@ class HighscoreDeluebs:
                             color_map_L = mapping_result['L']
                             color_map_B = mapping_result['B']
                             is_shorts = mapping_result['SHORTS']
-                            is_focus = mapping_result['FOCUS']  # <--- DIESE ZEILE HAT GEFEHLT!
+                            is_focus = mapping_result['FOCUS']  
+                            is_weapon = mapping_result['WAFFE'] # <-- NEU: Variable auslesen
 
                             # ==========================================
                             # 3. JSON verarbeiten (Die smarte Kamera-Regie)
@@ -1077,8 +1090,9 @@ class HighscoreDeluebs:
                             video_config = {
                                 "MATCH_ID": match_id,
                                 "POV_SPIELER": entry.get('spieler') if pov_num == 1 else entry.get('spieler2'),
-                                "YOUTUBE_SHORTS": is_shorts,  # <-- HIER die Variable einsetzen!
-                                "FOCUS_WAYPOINTS": is_focus, # <-- NEU
+                                "WAFFEN_PROFIL": is_weapon,   # <-- NEU eingefügt!
+                                "YOUTUBE_SHORTS": is_shorts,  
+                                "FOCUS_WAYPOINTS": is_focus, 
                                 "TIMING": timing,
                                 "SEQUENCE_POV": sequence_pov,
                                 "SEQUENCE_GEGNER": sequence_gegner,
@@ -1115,11 +1129,11 @@ class HighscoreDeluebs:
                                 return "[" + ", ".join(f"{json.dumps(arr[i]):>{col_widths[i]}}" for i in range(len(arr))) + "]"
                             
                             # 3. JSON zusammensetzen
-                            # --- NEU: YOUTUBE_SHORTS mit in die Datei schreiben ---
                             json_zeilen = [
                                 "{",
                                 f'    "MATCH_ID": {video_config["MATCH_ID"]},',
                                 f'    "POV_SPIELER": "{video_config["POV_SPIELER"]}",',
+                                f'    "WAFFEN_PROFIL": "{video_config["WAFFEN_PROFIL"]}",', # <-- NEU (als String in Anführungszeichen)
                                 f'    "YOUTUBE_SHORTS": {"true" if video_config["YOUTUBE_SHORTS"] else "false"},',
                                 f'    "FOCUS_WAYPOINTS": {"true" if video_config["FOCUS_WAYPOINTS"] else "false"},',
                                 f'    "TIMING":          {format_row(video_config["TIMING"])},',
