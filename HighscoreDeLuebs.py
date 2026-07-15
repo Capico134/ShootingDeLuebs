@@ -808,7 +808,6 @@ class HighscoreDeluebs:
                         else:
                             from tkinter import messagebox
                             messagebox.showwarning("Nicht gefunden", f"Kein Detail-Log für Match {match_id} gefunden.")
-
     def export_video_config(self):
         selected_items = self.tree.selection()
         if not selected_items:
@@ -855,12 +854,13 @@ class HighscoreDeluebs:
                                 mapping_result['B'] = var_b.get()
                                 mapping_result['SHORTS'] = var_shorts.get() 
                                 mapping_result['FOCUS'] = var_focus.get() 
-                                mapping_result['WAFFE'] = var_weapon.get() # <-- NEU: Waffe speichern
+                                mapping_result['WAFFE'] = var_weapon.get()
+                                mapping_result['GHOST'] = var_ghost.get() # <-- NEU: Ghost-Modus speichern
                                 dialog.destroy()
                                 
                             dialog = tk.Toplevel(self.tree.master)
                             dialog.title("Video & LED-Farben konfigurieren")
-                            dialog.geometry("380x440") # <-- Etwas höher für die Waffen-Auswahl
+                            dialog.geometry("380x480") # <-- Etwas höher gemacht, damit die neue Checkbox Platz hat
                             dialog.transient(self.tree.master)
                             dialog.grab_set() 
                             
@@ -868,7 +868,8 @@ class HighscoreDeluebs:
                             var_b = tk.IntVar(value=1) # 0=Blau, 1=Gold, 2=Split
                             var_shorts = tk.BooleanVar(value=False) 
                             var_focus = tk.BooleanVar(value=True) 
-                            var_weapon = tk.StringVar(value="RedDot") # <-- NEU: Standardwaffe
+                            var_weapon = tk.StringVar(value="RedDot") 
+                            var_ghost = tk.BooleanVar(value=False) # <-- NEU: Ghost-Variable (Standard: Aus)
                             
                             tk.Label(dialog, text="Farbe für LEUCHTENDE Ziele ('L'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
                             tk.Radiobutton(dialog, text="Blau (Alle)", variable=var_l, value=0).pack()
@@ -880,7 +881,7 @@ class HighscoreDeluebs:
                             tk.Radiobutton(dialog, text="Goldgelb (Alle)", variable=var_b, value=1).pack()
                             tk.Radiobutton(dialog, text="Auto-Split (P1=Blau / P2=Gold)", variable=var_b, value=2).pack()
                             
-                            # --- NEU: Waffenauswahl ---
+                            # --- Waffenauswahl ---
                             tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10)
                             tk.Label(dialog, text="Waffen-Profil / Animation:", font=("Arial", 10, "bold")).pack(pady=(0,5))
                             
@@ -894,6 +895,9 @@ class HighscoreDeluebs:
                             tk.Checkbutton(dialog, text="YouTube-Shorts Format (9:16)", variable=var_shorts, font=("Arial", 10, "bold"), fg="darkred").pack()
                             tk.Checkbutton(dialog, text="Fokus von Zwischenzielen entkoppeln", variable=var_focus, font=("Arial", 10)).pack(pady=(5,0))
                             
+                            # --- NEU: Die Ghost-Checkbox ---
+                            tk.Checkbutton(dialog, text="Ghost-Modus (Waffe wird halbtransparent)", variable=var_ghost, font=("Arial", 10, "italic"), fg="blue").pack(pady=(5,0))
+                            
                             tk.Button(dialog, text="Exportieren", command=on_ok, bg="lightgreen").pack(pady=15)
                             self.tree.master.wait_window(dialog)
                             
@@ -903,7 +907,8 @@ class HighscoreDeluebs:
                             color_map_B = mapping_result['B']
                             is_shorts = mapping_result['SHORTS']
                             is_focus = mapping_result['FOCUS']  
-                            is_weapon = mapping_result['WAFFE'] # <-- NEU: Variable auslesen
+                            is_weapon = mapping_result['WAFFE'] 
+                            is_ghost = mapping_result['GHOST'] # <-- NEU: Variable auslesen
 
                             # ==========================================
                             # 3. JSON verarbeiten (Die smarte Kamera-Regie)
@@ -918,7 +923,6 @@ class HighscoreDeluebs:
                             
                             ACTION_STATES = ["FEUER", "PLAYER1", "PLAYER2", "END", "WINNER"]
                             
-                            # --- NEU: State-Machine für die Kamera ---
                             phase = "IDLE"  # Kann sein: "IDLE", "ACTION", "GRACE"
                             
                             last_orig_t = 0.0
@@ -927,7 +931,6 @@ class HighscoreDeluebs:
                             first_up_done = False
                             grace_timer = 0.0
                             
-                            # Wir merken uns die letzten LEDs, falls die Waffe im "leeren" Raum abtaucht
                             last_L = []
                             last_B = []
                             
@@ -939,13 +942,9 @@ class HighscoreDeluebs:
                                 delta_orig = max(0, t_orig - last_orig_t)
                                 last_orig_t = t_orig
                                 
-                                # ======================================================
-                                # --- 1. ZEIT-MANAGEMENT & GRACE-TIMER (Nachspielzeit) ---
-                                # ======================================================
+                                # 1. ZEIT-MANAGEMENT & GRACE-TIMER
                                 if phase == "GRACE":
                                     if delta_orig >= grace_timer:
-                                        # Die Frist ist exakt WÄHREND dieser Pause abgelaufen!
-                                        # Wir spulen genau zum Ablauf-Zeitpunkt vor und schicken die Waffe DOWN.
                                         t_video += grace_timer
                                         phase = "IDLE"
                                         last_down_t_video = t_video
@@ -958,42 +957,32 @@ class HighscoreDeluebs:
                                         blau_l.append(last_L if color_map_L == 1 else [])
                                         gold_b.append(last_B if color_map_B == 0 else [])
                                         blau_b.append(last_B if color_map_B == 1 else [])
-                                        
-                                        # (Die restliche Zeit von delta_orig verfällt -> Stauchung!)
                                     else:
-                                        # Frist läuft noch, Zeit läuft normal weiter
                                         t_video += delta_orig
                                         grace_timer -= delta_orig
                                         
                                 elif phase == "ACTION":
-                                    # In der heißen Phase läuft die Zeit immer 1:1
                                     t_video += delta_orig
                                     
-                                # Aktuelle Lampen immer merken
                                 last_L = ev.get("L", [])
                                 last_B = ev.get("B", [])
                                 
                                 frame_hinzugefuegt = False
                                 
-                                # ======================================================
-                                # --- 2. STATUS WECHSEL ---
-                                # ======================================================
+                                # 2. STATUS WECHSEL
                                 if action == "state_change":
                                     if m in ACTION_STATES:
                                         if phase in ["IDLE", "GRACE"]:
                                             if phase == "GRACE":
-                                                # Falls das nächste FEUER noch innerhalb der Frist startet
                                                 phase = "ACTION"
                                             elif phase == "IDLE":
-                                                # ACTION STARTET! (Waffe hoch)
                                                 phase = "ACTION"
                                                 if not first_up_done:
                                                     t_video = 0.0
                                                     first_up_done = True
                                                 else:
-                                                    # STAUCHUNG: Exakt 3 Sekunden Pause
                                                     t_video = last_down_t_video + 3.0
-                                                    
+                                                
                                                 timing.append(round(t_video, 2))
                                                 sequence_pov.append("UP")       
                                                 sequence_gegner.append(-1)
@@ -1001,14 +990,10 @@ class HighscoreDeluebs:
                                                 
                                     elif m not in ACTION_STATES:
                                         if phase == "ACTION":
-                                            # ACTION ENDET offiziell (z.B. Wechsel auf LADEN).
-                                            # Aber die Waffe bleibt OBEN! Wir starten nur die Gnadenfrist.
                                             phase = "GRACE"
                                             grace_timer = 1.5
 
-                                # ======================================================
-                                # --- 3. SCHÜSSE ---
-                                # ======================================================
+                                # 3. SCHÜSSE
                                 elif action == "shoot" and phase in ["ACTION", "GRACE"]:
                                     timing.append(round(t_video, 2))
                                     
@@ -1028,26 +1013,19 @@ class HighscoreDeluebs:
                                         
                                     frame_hinzugefuegt = True
                                     
-                                    # WICHTIG: Wenn in der Nachspielzeit geschossen wird, 
-                                    # verlängern wir die Haltezeit der Waffe wieder auf volle 1.5 Sekunden!
                                     if phase == "GRACE":
                                         grace_timer = 1.5
                                 
-                                # ======================================================
-                                # --- 4. FARBEN SPEICHERN (Die clevere Sortier-Maschine) ---
-                                # ======================================================
+                                # 4. FARBEN SPEICHERN
                                 if frame_hinzugefuegt:
                                     L_list = ev.get("L", [])
                                     B_list = ev.get("B", [])
                                     
                                     def process_colors(leds, mode):
-                                        if mode == 0: return [], leds       # 0 = Alles Blau, kein Gold
-                                        if mode == 1: return leds, []       # 1 = Alles Gold, kein Blau
+                                        if mode == 0: return [], leds       
+                                        if mode == 1: return leds, []       
                                         
-                                        # Modus 2: Der Auto-Split
                                         g_out, b_out = [], []
-                                        
-                                        # Wer hat gerade die Mehrheit (für Ziel 2)?
                                         g_count = sum(1 for x in leds if x in [0, 1])
                                         b_count = sum(1 for x in leds if x in [3, 4])
                                         
@@ -1057,15 +1035,13 @@ class HighscoreDeluebs:
                                             elif x in [3, 4]: 
                                                 b_out.append(x)
                                             elif x == 2:
-                                                # Das mittlere Ziel bekommt die Farbe des Mehrheits-Besitzers!
                                                 if g_count > b_count: 
                                                     g_out.append(x)
                                                 else: 
-                                                    b_out.append(x) # Blau gewinnt auch bei Gleichstand
+                                                    b_out.append(x) 
                                                     
                                         return g_out, b_out
                                         
-                                    # L und B durch die Maschine jagen
                                     cur_gold_l, cur_blau_l = process_colors(L_list, color_map_L)
                                     cur_gold_b, cur_blau_b = process_colors(B_list, color_map_B)
                                     
@@ -1074,9 +1050,7 @@ class HighscoreDeluebs:
                                     gold_b.append(cur_gold_b)
                                     blau_b.append(cur_blau_b)
                                     
-                            # ======================================================
-                            # --- 5. FINISH (Falls Match in Action/Grace endet) ---
-                            # ======================================================
+                            # 5. FINISH
                             if phase in ["ACTION", "GRACE"]:
                                 t_video += 1.5
                                 timing.append(round(t_video, 2))
@@ -1090,7 +1064,8 @@ class HighscoreDeluebs:
                             video_config = {
                                 "MATCH_ID": match_id,
                                 "POV_SPIELER": entry.get('spieler') if pov_num == 1 else entry.get('spieler2'),
-                                "WAFFEN_PROFIL": is_weapon,   # <-- NEU eingefügt!
+                                "WAFFEN_PROFIL": is_weapon,
+                                "GHOST_MODUS": is_ghost, # <-- NEU: In das Dictionary eingefügt
                                 "YOUTUBE_SHORTS": is_shorts,  
                                 "FOCUS_WAYPOINTS": is_focus, 
                                 "TIMING": timing,
@@ -1103,13 +1078,12 @@ class HighscoreDeluebs:
                             }
                             
                             # ==========================================
-                            # --- SMARTES & KOMPAKTES SPEICHERN (Die Matrix) ---
+                            # --- SMARTES & KOMPAKTES SPEICHERN ---
                             # ==========================================
                             export_dir = "./savegames/video_configs"
                             os.makedirs(export_dir, exist_ok=True)
                             export_path = os.path.join(export_dir, f"VIDEO_MATCH{match_id:06d}.json")
                             
-                            # 1. Wir ermitteln für jede einzelne "Spalte" die benötigte Maximal-Breite
                             num_cols = len(video_config["TIMING"])
                             col_widths = []
                             for i in range(num_cols):
@@ -1124,16 +1098,15 @@ class HighscoreDeluebs:
                                 )
                                 col_widths.append(w)
                                 
-                            # 2. Hilfsfunktion, die ein Array mit perfekten Abständen (Padding) in einen String gießt
                             def format_row(arr):
                                 return "[" + ", ".join(f"{json.dumps(arr[i]):>{col_widths[i]}}" for i in range(len(arr))) + "]"
                             
-                            # 3. JSON zusammensetzen
                             json_zeilen = [
                                 "{",
                                 f'    "MATCH_ID": {video_config["MATCH_ID"]},',
                                 f'    "POV_SPIELER": "{video_config["POV_SPIELER"]}",',
-                                f'    "WAFFEN_PROFIL": "{video_config["WAFFEN_PROFIL"]}",', # <-- NEU (als String in Anführungszeichen)
+                                f'    "WAFFEN_PROFIL": "{video_config["WAFFEN_PROFIL"]}",',
+                                f'    "GHOST_MODUS": {"true" if video_config["GHOST_MODUS"] else "false"},', # <-- NEU: In den Text-Export eingefügt
                                 f'    "YOUTUBE_SHORTS": {"true" if video_config["YOUTUBE_SHORTS"] else "false"},',
                                 f'    "FOCUS_WAYPOINTS": {"true" if video_config["FOCUS_WAYPOINTS"] else "false"},',
                                 f'    "TIMING":          {format_row(video_config["TIMING"])},',

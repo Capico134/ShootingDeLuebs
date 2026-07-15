@@ -3,7 +3,7 @@ import sys
 import math
 import numpy as np
 import json
-from PIL import Image, ImageFilter, ImageDraw
+from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 from moviepy import (
     VideoFileClip, ImageClip, CompositeVideoClip, VideoClip, 
     concatenate_videoclips, vfx, CompositeAudioClip, AudioFileClip
@@ -30,6 +30,9 @@ FOCUS_WAYPOINTS_MODUS = cfg.get("FOCUS_WAYPOINTS", False)
 
 # --- NEU: Die Waffe aus der JSON auslesen (Fallback auf "SteyrLP50", falls nichts drinsteht) ---
 WAFFEN_PROFIL = cfg.get("WAFFEN_PROFIL", "SteyrLP50")
+FOCUS_EFFEKT = cfg.get("FOCUS_EFFEKT", ["BLUR_LIGHT", "SPOTLIGHT", "COLOR"])
+WAFFEN_PROFIL_GEGNER = cfg.get("WAFFEN_PROFIL_GEGNER", "SteyrLP50") # Z.B. Steyr für den Gegner
+GHOST_MODUS_GEGNER = cfg.get("GHOST_MODUS_GEGNER", True)          # Der Gegner ist standardmäßig ein Geist
 
 OUTPUT_NAME = CONFIG_DATEI.replace(".json", "_Render.mp4")
 print(f"OUTPUT_NAME: {OUTPUT_NAME}")
@@ -41,26 +44,32 @@ BG_IMAGE = "Schiessstand_upscayl_3x_upscayl-standard-4x.png"
 # ==========================================
 PROFILES = {
     "RedDot": {
-        "TARGETS": [(2138, 440), (1649, 442), (1173, 443), (697, 443), (212, 443)],
+        "TARGETS": [(2138+26, 440+45), (1649+26, 442+45), (1173+26, 443+45), (697+26, 443+45), (212+26, 443+45)],
         "IDLE_IMG": "standbild.png",
         "SHOOT_VID": "schuss.mp4",
         "T_IMPACT": 2.6,
         "CLIP_DURATION": 4.75,
         "MIN_RECOIL": 0.6,
         "ZOOM": 1.0,           # 1.0 = Originalgröße
-        "OFFSET_X": -155-460,  # Individueller Offset für die Waffe
-        "OFFSET_Y": -70
+        "OFFSET_X": -155-460-26,  # Individueller Offset für die Waffe
+        "OFFSET_Y": -70-45,
+        # --- NEU: Eigene Greenscreen-Werte ---
+        "GS_COLOR": [57, 177, 65],
+        "GS_THRESH": 88
     },
     "SteyrLP50": {
-        "TARGETS": [(2138, 440), (1649, 442), (1173, 443), (697, 443), (212, 443)],
+        "TARGETS": [(2138+26, 440+45), (1649+26, 442+45), (1173+26, 443+45), (697+26, 443+45), (212+26, 443+45)],
         "IDLE_IMG": "standbild_SteyrLP50.png",
         "SHOOT_VID": "schuss_SteyrLP50.mp4",
         "T_IMPACT": 1.50,
         "CLIP_DURATION": 2.7,
         "MIN_RECOIL": 0.6,
         "ZOOM": 1.3,          # <-- HIER: 25% reingezoomt!
-        "OFFSET_X": -155-460-205,  # Ggf. anpassen, wenn das Bild durch den Zoom verrutscht
-        "OFFSET_Y": -70+39
+        "OFFSET_X": -155-460-205-26,  # Ggf. anpassen, wenn das Bild durch den Zoom verrutscht
+        "OFFSET_Y": -70+39-45,
+        # --- NEU: Eigene Greenscreen-Werte ---
+        "GS_COLOR": [57, 177, 65],
+        "GS_THRESH": 88
     }
 }
 
@@ -366,8 +375,8 @@ def build_video():
         
         # 4. Alle 5 LEDs durchgehen
         for led_idx, target_pos in enumerate(TARGETS):
-            lx = target_pos[0] + 80 + 13
-            ly = target_pos[1] - 80 + 31 
+            lx = target_pos[0] + 80 + 13 -26
+            ly = target_pos[1] - 80 + 31 -45
             radius = 22
             
             # --- DIE GENIALE FARB-WEICHE ---
@@ -399,15 +408,31 @@ def build_video():
 
         return np.array(img_copy)
 
-    def make_blurred_bg_frame(t):
-        # Wir rendern das Bild mit LEDs und machen es unscharf (für den Bokeh-Effekt!)
+    def make_base_bg_frame(t):
+        """Das ist unsere unterste Sandwich-Scheibe (Der Raum außerhalb des Fokus)"""
         frame = make_bg_frame(t)
-        blurred = Image.fromarray(frame).filter(ImageFilter.GaussianBlur(radius=5))
-        return np.array(blurred)
+        img = Image.fromarray(frame)
+        
+        # --- DIE FILTER-KETTE (Mehrere Effekte nahtlos kombinierbar!) ---
+        if "BLUR_HEAVY" in FOCUS_EFFEKT:
+            img = img.filter(ImageFilter.GaussianBlur(radius=5))
+            
+        if "BLUR_LIGHT" in FOCUS_EFFEKT:
+            img = img.filter(ImageFilter.GaussianBlur(radius=1.8))
+            
+        if "COLOR" in FOCUS_EFFEKT:
+            # Sin City / Matrix: Reduziert die Farbe auf 10%
+            img = ImageEnhance.Color(img).enhance(0.85)
+            
+        if "SPOTLIGHT" in FOCUS_EFFEKT:
+            # Der Raum wird um 60% abgedunkelt (0.4 = 40% Resthelligkeit)
+            img = ImageEnhance.Brightness(img).enhance(0.825)
+            
+        return np.array(img)
 
-    # 4. MoviePy die Kontrolle übergeben (ruft die Funktionen für jeden Frame selbst auf)
+    # 4. MoviePy die Kontrolle übergeben
     bg_sharp = VideoClip(frame_function=make_bg_frame, duration=total_duration)
-    bg_blurred = VideoClip(frame_function=make_blurred_bg_frame, duration=total_duration)
+    bg_base = VideoClip(frame_function=make_base_bg_frame, duration=total_duration) # <-- Früher bg_blurred
     
     # --- B. DYNAMISCHE FOKUS-MASKE (mit CPU-Cache) ---
     class DynamicFocusMask(VideoClip):
@@ -449,28 +474,47 @@ def build_video():
             w, h = self.size
             cx, cy = get_focus_position(t)
             
-            # --- NEU: Den Shake auslesen ---
-            sh_x, sh_y = get_camera_shake(t)
-            
-            # Basis-Radius und Druckwelle berechnen
+            # 1. Basis-Fokus
             current_radius = 130
-            if sh_y != 0:
-                current_radius += 20 # Druckwelle beim Schuss!
             
-            # 1. CACHE-CHECK: Hat sich Position ODER der Radius verändert?
-            # Wir speichern jetzt 3 Werte im Cache: cx, cy und current_radius
-            if self.last_pos == (cx, cy, current_radius) and self.last_mask is not None:
+            # 2. Gibt es gerade einen Schuss-Blitz? (Entkoppelt!)
+            flash_x, flash_y = None, None
+            flash_radius = 0
+            
+            for i, wp_time in enumerate(TIMING):
+                val = SEQUENCE_POV[i]
+                if isinstance(val, int) and val >= 0:
+                    if wp_time <= t <= (wp_time + 0.15): 
+                        # HIER IST DER TRICK: Wir holen uns die exakte, 
+                        # unbewegliche Position des Ziels, auf das geschossen wird!
+                        flash_pos = get_target_coords(val)
+                        flash_x, flash_y = flash_pos[0], flash_pos[1]
+                        flash_radius = 175  # Der größere Lichtblitz
+                        break
+            
+            # 3. CACHE-CHECK: Wir speichern jetzt auch die Flash-Werte im Cache
+            cache_key = (cx, cy, flash_x, flash_y)
+            if hasattr(self, 'last_cache_key') and self.last_cache_key == cache_key and self.last_mask is not None:
                 return self.last_mask
             
-            # 2. NEUBERECHNUNG
+            # 4. NEUBERECHNUNG
             y, x = np.ogrid[:h, :w]
-            dist = np.sqrt((x - cx)**2 + (y - cy)**2)
-            
             feather = 75
-            mask = np.clip((current_radius + feather - dist) / feather, 0, 1)
             
-            # 3. CACHE UPDATEN: Neue Daten für den nächsten Frame merken
-            self.last_pos = (cx, cy, current_radius)
+            # A) Die normale Kamera (Basis-Radius)
+            dist_base = np.sqrt((x - cx)**2 + (y - cy)**2)
+            mask = np.clip((current_radius + feather - dist_base) / feather, 0, 1)
+            
+            # B) Der entkoppelte Impact-Blitz (falls einer existiert)
+            if flash_x is not None:
+                dist_flash = np.sqrt((x - flash_x)**2 + (y - flash_y)**2)
+                mask_flash = np.clip((flash_radius + feather - dist_flash) / feather, 0, 1)
+                
+                # Wir legen beide Masken übereinander (der jeweils hellere Wert gewinnt!)
+                mask = np.maximum(mask, mask_flash)
+            
+            # 5. CACHE UPDATEN
+            self.last_cache_key = cache_key
             self.last_mask = mask
             
             return mask
@@ -486,10 +530,14 @@ def build_video():
 
     # --- C. PISTOLE (Greenscreen & Trigger-System) ---
     
-    # 1. Effekte definieren (Crop & Greenscreen)
+    # 1. Effekte definieren (Crop & Greenscreen dynamisch!)
     gun_effects = [
         vfx.Crop(x1=0, y1=120, x2=1120, y2=720), 
-        vfx.MaskColor(color=[57, 177, 65], threshold=88, stiffness=8)
+        vfx.MaskColor(
+            color=active_gun.get("GS_COLOR", [57, 177, 65]), 
+            threshold=active_gun.get("GS_THRESH", 88), 
+            stiffness=8
+        )
     ]
     
     # 2. Assets dynamisch aus dem Waffen-Profil laden
@@ -588,6 +636,11 @@ def build_video():
     
     gun_clip = gun_clip_dynamic.with_mask(gun_mask_dynamic)
     
+    # --- NEU: DER GHOST-MODUS ---
+    GHOST_MODUS = cfg.get("GHOST_MODUS", False) # Das liest du oben bei den anderen cfg.get() ein
+    if GHOST_MODUS:
+        gun_clip = gun_clip.with_opacity(0.4) # 40% Deckkraft = Perfekter Geister-Look!
+    
     # 6. Schwenken und Shake aus der Engine anwenden
     gun_clip = gun_clip.with_position(get_gun_position)
 
@@ -599,10 +652,10 @@ def build_video():
     def bg_position(t):
         return get_camera_shake(t)
 
-    # Reihenfolge: 1. Unscharf -> 2. Scharf -> 3. Pistole
+    # Reihenfolge: 1. Basis-Raum -> 2. Scharfer Fokusbereich -> 3. Pistole
     final_video = CompositeVideoClip(
         [
-            bg_blurred.with_position(bg_position), 
+            bg_base.with_position(bg_position), # <-- HIER umbenannt
             bg_sharp_masked.with_position(bg_position), 
             gun_clip
         ], 
