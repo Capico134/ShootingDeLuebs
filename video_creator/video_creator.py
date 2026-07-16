@@ -31,7 +31,7 @@ FOCUS_WAYPOINTS_MODUS = cfg.get("FOCUS_WAYPOINTS", False)
 # --- NEU: Die Waffe aus der JSON auslesen (Fallback auf "SteyrLP50", falls nichts drinsteht) ---
 WAFFEN_PROFIL = cfg.get("WAFFEN_PROFIL", "SteyrLP50")
 FOCUS_EFFEKT = cfg.get("FOCUS_EFFEKT", ["BLUR_LIGHT", "SPOTLIGHT", "COLOR"])
-WAFFEN_PROFIL_GEGNER = cfg.get("WAFFEN_PROFIL_GEGNER", "SteyrLP50") # Z.B. Steyr für den Gegner
+WAFFEN_PROFIL_GEGNER = cfg.get("WAFFEN_PROFIL_GEGNER", "RedDot") # Z.B. Steyr für den Gegner
 GHOST_MODUS_GEGNER = cfg.get("GHOST_MODUS_GEGNER", True)          # Der Gegner ist standardmäßig ein Geist
 
 OUTPUT_NAME = CONFIG_DATEI.replace(".json", "_Render.mp4")
@@ -145,14 +145,8 @@ def get_target_coords(val):
 # ==========================================
 # Einmalige Vorberechnung für die Kamera (mit Versteck-Logik)
 # ==========================================
-HIDE_OFFSET_Y = 1000  # Wie viele Pixel soll die Waffe nach unten ins "Holster" verschwinden?
-
-GUN_WAYPOINTS = []
-
-# ==========================================
-# Einmalige Vorberechnung für die Kamera (mit Versteck-Logik)
-# ==========================================
 HIDE_OFFSET_Y = 1000 
+HIDE_OFFSET_Y_GEGNER = 1800
 GUN_WAYPOINTS = []
 
 def find_target(start_idx, direction=1):
@@ -212,6 +206,50 @@ for i, val in enumerate(SEQUENCE_POV):
 
 
 
+# ==========================================
+# NEU: Wegpunkte für die Gegner-Waffe
+# ==========================================
+GEGNER_WAYPOINTS = []
+last_valid_pos_gegner = None
+
+def find_target_gegner(start_idx, direction=1):
+    idx = start_idx
+    while 0 <= idx < len(SEQUENCE_GEGNER):
+        val = SEQUENCE_GEGNER[idx]
+        if isinstance(val, (int, float)) and val >= 0:
+            return get_target_coords(val)
+        idx += direction
+    return TARGETS[2]
+
+for i, val in enumerate(SEQUENCE_GEGNER):
+    current_t = TIMING[i]
+
+    if val == "UP":
+        tgt = find_target_gegner(i, 1)
+        pos = (tgt[0], tgt[1] + HIDE_OFFSET_Y_GEGNER)
+        GEGNER_WAYPOINTS.append((current_t, pos))
+        last_valid_pos_gegner = pos
+
+    elif val == "DOWN":
+        tgt = find_target_gegner(i, -1)
+        pos = (tgt[0], tgt[1] + HIDE_OFFSET_Y_GEGNER)
+        
+        if last_valid_pos_gegner:
+            hold_time = max(0, current_t - 1.5)
+            if len(GEGNER_WAYPOINTS) > 0 and hold_time > GEGNER_WAYPOINTS[-1][0]:
+                GEGNER_WAYPOINTS.append((hold_time, last_valid_pos_gegner))
+                
+        GEGNER_WAYPOINTS.append((current_t, pos))
+        last_valid_pos_gegner = pos
+
+    elif isinstance(val, (int, float)) and val >= 0:
+        pos = get_target_coords(val)
+        GEGNER_WAYPOINTS.append((current_t, pos))
+        last_valid_pos_gegner = pos
+
+
+
+
 # Offset: Wie weit ist der rote Punkt vom Video-Mittelpunkt entfernt?
 # (Musst du ggf. anpassen, damit das Visier genau auf dem Ziel liegt)
 #GUN_OFFSET_X = -155-460
@@ -243,22 +281,24 @@ def get_current_target_info(t):
             raw_progress = (t - t_start) / duration
             
             # =======================================================
-            # --- DIE NEUE DYNAMISCHE KINEMATIK (Physik-Engine) ---
+            # --- DIE NEUE DYNAMISCHE KINEMATIK (POV-Spieler) ---
             # =======================================================
             if p_end[1] > p_start[1] + 500:
-                # 1. Waffe geht DOWN (Schwerkraft -> Cubic Ease-In)
-                # Startet ganz sanft und fällt dann exponentiell schneller nach unten.
-                progress = raw_progress ** 3
+                # 1. Waffe geht DOWN (Schwerkraft)
+                # POV ist schneller und zackiger: Quintic Ease-In (Hochzahl 5)
+                # Fällt anfangs kurz sanft, sackt dann aber rasend schnell ab.
+                progress = raw_progress ** 5
                 
             elif p_start[1] > p_end[1] + 500:
-                # 2. Waffe geht UP (Muskelkraft -> Cubic Ease-Out)
-                # Reißt extrem schnell aus dem Off nach oben und bremst sanft im Ziel ein.
-                progress = 1.0 - ((1.0 - raw_progress) ** 3)
+                # 2. Waffe geht UP (Muskelkraft)
+                # POV reißt die Waffe aggressiv hoch: Quintic Ease-Out (Hochzahl 5)
+                # Schießt extrem schnell ins Bild und bremst hart im Ziel ein.
+                progress = 1.0 - ((1.0 - raw_progress) ** 5)
                 
             else:
-                # 3. Normaler Schwenk (Körperdrehung -> Smoothstep Ease-In-Out)
-                # Sanftes Anfahren und sanftes Abbremsen.
-                progress = raw_progress * raw_progress * (3.0 - 2.0 * raw_progress)
+                # 3. Normaler Schwenk zwischen Zielen
+                # Hier machen wir den POV auch minimal aggressiver (Smootherstep statt Smoothstep)
+                progress = raw_progress * raw_progress * raw_progress * (raw_progress * (raw_progress * 6.0 - 15.0) + 10.0)
                 
             return p_start, p_end, progress
             
@@ -343,6 +383,48 @@ def get_gun_position(t):
     
     final_y = min(final_y, 915)
     return (final_x, final_y)
+
+
+###################### GEGNER GEISTER POSITION ######################
+
+active_gegner_gun = PROFILES.get(WAFFEN_PROFIL_GEGNER, PROFILES["SteyrLP50"])
+
+def get_gegner_target_info(t):
+    if t < GEGNER_WAYPOINTS[0][0]: return GEGNER_WAYPOINTS[0][1], GEGNER_WAYPOINTS[0][1], 1.0 
+    if t >= GEGNER_WAYPOINTS[-1][0]: return GEGNER_WAYPOINTS[-1][1], GEGNER_WAYPOINTS[-1][1], 1.0 
+        
+    for i in range(len(GEGNER_WAYPOINTS) - 1):
+        t_start, p_start = GEGNER_WAYPOINTS[i]
+        t_end, p_end = GEGNER_WAYPOINTS[i+1]
+        
+        if t_start <= t < t_end:
+            duration = t_end - t_start
+            raw_progress = (t - t_start) / duration
+            
+            if p_end[1] > p_start[1] + 500: progress = raw_progress ** 3
+            elif p_start[1] > p_end[1] + 500: progress = 1.0 - ((1.0 - raw_progress) ** 3)
+            else: progress = raw_progress * raw_progress * (3.0 - 2.0 * raw_progress)
+                
+            return p_start, p_end, progress
+    return GEGNER_WAYPOINTS[-1][1], GEGNER_WAYPOINTS[-1][1], 1.0
+
+def get_gegner_gun_position(t):
+    start_pos, end_pos, progress = get_gegner_target_info(t)
+    base_x = start_pos[0] + (end_pos[0] - start_pos[0]) * progress
+    base_y = start_pos[1] + (end_pos[1] - start_pos[1]) * progress
+    
+    # Gegner atmet leicht asynchron zum Spieler!
+    breath_x = math.sin(t * 1.3) * 4
+    breath_y = math.cos(t * 1.1) * 6
+    
+    # Kein Camera-Shake für den Gegner (er wackelt ja nicht an unserer Kamera)
+    final_x = base_x + breath_x + active_gegner_gun["OFFSET_X"]
+    final_y = base_y + breath_y + active_gegner_gun["OFFSET_Y"]
+    return (final_x, min(final_y, 915))
+
+
+
+
 
 # ==========================================
 # 3. VIDEO-ZUSAMMENBAU (MoviePy v2.2.1)
@@ -528,7 +610,7 @@ def build_video():
     bg_sharp_masked = bg_sharp.with_mask(focus_mask)
 
 
-    # --- C. PISTOLE (Greenscreen & Trigger-System) ---
+    # C1 PISTOLE (Greenscreen & Trigger-System) ---
     
     # 1. Effekte definieren (Crop & Greenscreen dynamisch!)
     gun_effects = [
@@ -559,34 +641,85 @@ def build_video():
     CLIP_DURATION = active_gun["CLIP_DURATION"]
     MIN_RECOIL = active_gun["MIN_RECOIL"]
     
-#    # 2. Assets laden und vorbereiten
-#    idle_clip = (ImageClip("standbild.png")
-#                 .with_duration(total_duration)
-#                 .with_effects(gun_effects))
-#    # NEU: Wir laden das KOMPLETTE Video (0 bis 4.75s)
-#    recoil_clip = (VideoFileClip("schuss.mp4")
-#                   .without_audio()
-#                   .with_effects(gun_effects))
-#    # --- Die Parameter deiner Animation ---
-#    T_IMPACT = 2.6          # Bei welcher Sekunde im Video fällt der Schuss?
-#    CLIP_DURATION = 4.75    # Wie lang ist das schuss.mp4 insgesamt?
-#    MIN_RECOIL = 0.6        # Wie lange (in Sekunden) muss der Rückstoß des 
-                            # VORHERIGEN Schusses mindestens laufen, bevor er abgebrochen wird?
-                            
-#    # 2. Assets laden und vorbereiten
-#    idle_clip = (ImageClip("standbild_SteyrLP50.png")
-#                 .with_duration(total_duration)
-#                 .with_effects(gun_effects))
-#    # NEU: Wir laden das KOMPLETTE Video (0 bis 4.75s)
-#    recoil_clip = (VideoFileClip("schuss_SteyrLP50.mp4")
-#                   .without_audio()
-#                   .with_effects(gun_effects))
-#    # --- Die Parameter deiner Animation ---
-#    T_IMPACT = 1.50          # Bei welcher Sekunde im Video fällt der Schuss?
-#    CLIP_DURATION = 3.00    # Wie lang ist das schuss.mp4 insgesamt?
-#    MIN_RECOIL = 0.6        # Wie lange (in Sekunden) muss der Rückstoß des 
-#                           # VORHERIGEN Schusses mindestens laufen, bevor er abgebrochen wird?
+    # ==========================================
+    # C2. GEGNER-PISTOLE (Greenscreen & Assets)
+    # ==========================================
+    
+    # 1. Eigene Effekte für den Gegner definieren (Greenscreen-Werte der Gegner-Waffe!)
+    gegner_effects = [
+        vfx.Crop(x1=0, y1=120, x2=1120, y2=720), 
+        vfx.MaskColor(
+            color=active_gegner_gun.get("GS_COLOR", [57, 177, 65]), 
+            threshold=active_gegner_gun.get("GS_THRESH", 88), 
+            stiffness=8
+        )
+    ]
+    
+    # 2. Gegner-Assets laden
+    gegner_idle_clip = (ImageClip(active_gegner_gun["IDLE_IMG"])
+                        .with_duration(total_duration)
+                        .with_effects(gegner_effects))
+                 
+    gegner_recoil_clip = (VideoFileClip(active_gegner_gun["SHOOT_VID"])
+                          .without_audio()
+                          .with_effects(gegner_effects))
+                   
+    # 3. Zoom für den Gegner anwenden
+    if active_gegner_gun["ZOOM"] != 1.0:
+        gegner_idle_clip = gegner_idle_clip.resized(active_gegner_gun["ZOOM"])
+        gegner_recoil_clip = gegner_recoil_clip.resized(active_gegner_gun["ZOOM"])
 
+    # 4. Parameter für den Gegner auslesen
+    G_T_IMPACT = active_gegner_gun["T_IMPACT"]
+    G_CLIP_DURATION = active_gegner_gun["CLIP_DURATION"]
+    G_MIN_RECOIL = active_gegner_gun["MIN_RECOIL"]
+
+    # ==========================================
+    # --- DER DYNAMISCHE MOTOR FÜR DEN GEGNER ---
+    # ==========================================
+    def get_active_gegner_clip_time(t):
+        """Spielt das Video (Greenscreen-Rückstoß) NUR bei echten Schüssen ab!"""
+        valid_shots = [TIMING[i] for i, val in enumerate(SEQUENCE_GEGNER) if isinstance(val, int) and val >= 0]
+        
+        for i in range(len(valid_shots) - 1, -1, -1):
+            wp_time = valid_shots[i]
+            ideal_start = wp_time - G_T_IMPACT
+            
+            if i > 0:
+                prev_wp_time = valid_shots[i-1]
+                actual_start = max(prev_wp_time + G_MIN_RECOIL, ideal_start)
+            else:
+                actual_start = ideal_start
+                
+            end_time = wp_time + (G_CLIP_DURATION - G_T_IMPACT)
+            
+            if actual_start <= t < end_time:
+                local_t = G_T_IMPACT + (t - wp_time)
+                if local_t < 0:
+                    return None
+                return local_t
+        return None
+
+    def make_gegner_gun_frame(t):
+        local_t = get_active_gegner_clip_time(t)
+        if local_t is not None:
+            return gegner_recoil_clip.get_frame(local_t)
+        return gegner_idle_clip.get_frame(t)
+
+    def make_gegner_gun_mask_frame(t):
+        local_t = get_active_gegner_clip_time(t)
+        if local_t is not None:
+            return gegner_recoil_clip.mask.get_frame(local_t)
+        return gegner_idle_clip.mask.get_frame(t)
+
+    # Den dynamischen Clip für den Gegner zusammenstecken
+    gegner_gun_clip_dynamic = VideoClip(frame_function=make_gegner_gun_frame, duration=total_duration)
+    gegner_gun_mask_dynamic = VideoClip(frame_function=make_gegner_gun_mask_frame, is_mask=True, duration=total_duration)
+    
+    gegner_gun_clip = gegner_gun_clip_dynamic.with_mask(gegner_gun_mask_dynamic)
+    
+    # Bewegung und Atmung auf den Gegner anwenden
+    gegner_gun_clip = gegner_gun_clip.with_position(get_gegner_gun_position)
                             
 
     # 3. Die professionelle Time-Warp-Logik
@@ -652,12 +785,21 @@ def build_video():
     def bg_position(t):
         return get_camera_shake(t)
 
-    # Reihenfolge: 1. Basis-Raum -> 2. Scharfer Fokusbereich -> 3. Pistole
+    # Wenn der Ghost-Modus an ist, Gegner transparent machen
+    if GHOST_MODUS_GEGNER:
+        gegner_gun_clip = gegner_gun_clip.with_opacity(0.35) # Leicht durchsichtig
+        
+    # Auch der POV Spieler kann ein Geist sein (je nach Konfiguration)
+    if cfg.get("GHOST_MODUS", False):
+        gun_clip = gun_clip.with_opacity(0.4)
+
+    # Reihenfolge: Basis -> Scharfer Fokus -> Gegner (Geist) -> POV Spieler (Vordergrund)
     final_video = CompositeVideoClip(
         [
-            bg_base.with_position(bg_position), # <-- HIER umbenannt
+            bg_base.with_position(bg_position), 
             bg_sharp_masked.with_position(bg_position), 
-            gun_clip
+            gegner_gun_clip, # <-- Fehler behoben (nutzt jetzt automatisch get_gegner_gun_position)
+            gun_clip         # <-- Fehler behoben (nutzt jetzt automatisch get_gun_position)
         ], 
         size=(2400, 920) 
     )

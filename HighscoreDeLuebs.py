@@ -808,6 +808,7 @@ class HighscoreDeluebs:
                         else:
                             from tkinter import messagebox
                             messagebox.showwarning("Nicht gefunden", f"Kein Detail-Log für Match {match_id} gefunden.")
+    
     def export_video_config(self):
         selected_items = self.tree.selection()
         if not selected_items:
@@ -855,12 +856,16 @@ class HighscoreDeluebs:
                                 mapping_result['SHORTS'] = var_shorts.get() 
                                 mapping_result['FOCUS'] = var_focus.get() 
                                 mapping_result['WAFFE'] = var_weapon.get()
-                                mapping_result['GHOST'] = var_ghost.get() # <-- NEU: Ghost-Modus speichern
+                                mapping_result['GHOST'] = var_ghost.get()
+                                # --- NEU: Gegner Variablen speichern ---
+                                mapping_result['GEGNER_AKTIV'] = var_gegner_active.get()
+                                mapping_result['GEGNER_WAFFE'] = var_gegner_weapon.get()
+                                mapping_result['GEGNER_GHOST'] = var_gegner_ghost.get()
                                 dialog.destroy()
                                 
                             dialog = tk.Toplevel(self.tree.master)
                             dialog.title("Video & LED-Farben konfigurieren")
-                            dialog.geometry("380x480") # <-- Etwas höher gemacht, damit die neue Checkbox Platz hat
+                            dialog.geometry("400x620") # <-- Noch etwas höher für die Gegner-Einstellungen
                             dialog.transient(self.tree.master)
                             dialog.grab_set() 
                             
@@ -869,34 +874,49 @@ class HighscoreDeluebs:
                             var_shorts = tk.BooleanVar(value=False) 
                             var_focus = tk.BooleanVar(value=True) 
                             var_weapon = tk.StringVar(value="RedDot") 
-                            var_ghost = tk.BooleanVar(value=False) # <-- NEU: Ghost-Variable (Standard: Aus)
+                            var_ghost = tk.BooleanVar(value=False) 
                             
-                            tk.Label(dialog, text="Farbe für LEUCHTENDE Ziele ('L'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
+                            # --- NEU: Variablen für den Gegner ---
+                            var_gegner_active = tk.BooleanVar(value=True)
+                            var_gegner_weapon = tk.StringVar(value="SteyrLP50")
+                            var_gegner_ghost = tk.BooleanVar(value=True)
+                            
+                            tk.Label(dialog, text="Farbe für LEUCHTENDE Ziele ('L'):", font=("Arial", 10, "bold")).pack(pady=(10,5))
                             tk.Radiobutton(dialog, text="Blau (Alle)", variable=var_l, value=0).pack()
                             tk.Radiobutton(dialog, text="Goldgelb (Alle)", variable=var_l, value=1).pack()
                             tk.Radiobutton(dialog, text="Auto-Split (P1=Blau / P2=Gold)", variable=var_l, value=2).pack()
                             
-                            tk.Label(dialog, text="Farbe für BLINKENDE Ziele ('B'):", font=("Arial", 10, "bold")).pack(pady=(15,5))
+                            tk.Label(dialog, text="Farbe für BLINKENDE Ziele ('B'):", font=("Arial", 10, "bold")).pack(pady=(10,5))
                             tk.Radiobutton(dialog, text="Blau (Alle)", variable=var_b, value=0).pack()
                             tk.Radiobutton(dialog, text="Goldgelb (Alle)", variable=var_b, value=1).pack()
                             tk.Radiobutton(dialog, text="Auto-Split (P1=Blau / P2=Gold)", variable=var_b, value=2).pack()
                             
-                            # --- Waffenauswahl ---
+                            # --- POV Waffenauswahl ---
                             tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10)
-                            tk.Label(dialog, text="Waffen-Profil / Animation:", font=("Arial", 10, "bold")).pack(pady=(0,5))
+                            tk.Label(dialog, text="DEINE Waffe (POV-Spieler):", font=("Arial", 10, "bold")).pack(pady=(0,5))
                             
                             waffen_frame = tk.Frame(dialog)
                             waffen_frame.pack()
                             tk.Radiobutton(waffen_frame, text="Red Dot", variable=var_weapon, value="RedDot").pack(side="left", padx=10)
                             tk.Radiobutton(waffen_frame, text="Steyr LP50", variable=var_weapon, value="SteyrLP50").pack(side="left", padx=10)
+                            tk.Checkbutton(dialog, text="Deine Waffe ist halbtransparent", variable=var_ghost, fg="gray").pack()
+                            
+                            # --- NEU: GEGNER Waffenauswahl ---
+                            tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10)
+                            tk.Label(dialog, text="GEGNER Waffe (Ghost-Spieler):", font=("Arial", 10, "bold")).pack(pady=(0,5))
+                            
+                            tk.Checkbutton(dialog, text="Gegner im Video anzeigen", variable=var_gegner_active, font=("Arial", 9, "bold"), fg="blue").pack()
+                            
+                            gegner_waffen_frame = tk.Frame(dialog)
+                            gegner_waffen_frame.pack()
+                            tk.Radiobutton(gegner_waffen_frame, text="Red Dot", variable=var_gegner_weapon, value="RedDot").pack(side="left", padx=10)
+                            tk.Radiobutton(gegner_waffen_frame, text="Steyr LP50", variable=var_gegner_weapon, value="SteyrLP50").pack(side="left", padx=10)
+                            tk.Checkbutton(dialog, text="Gegner ist halbtransparent (Ghost)", variable=var_gegner_ghost, fg="gray").pack()
                             
                             # --- Checkboxen ---
                             tk.Frame(dialog, height=2, bd=1, relief="sunken").pack(fill="x", padx=20, pady=10)
                             tk.Checkbutton(dialog, text="YouTube-Shorts Format (9:16)", variable=var_shorts, font=("Arial", 10, "bold"), fg="darkred").pack()
                             tk.Checkbutton(dialog, text="Fokus von Zwischenzielen entkoppeln", variable=var_focus, font=("Arial", 10)).pack(pady=(5,0))
-                            
-                            # --- NEU: Die Ghost-Checkbox ---
-                            tk.Checkbutton(dialog, text="Ghost-Modus (Waffe wird halbtransparent)", variable=var_ghost, font=("Arial", 10, "italic"), fg="blue").pack(pady=(5,0))
                             
                             tk.Button(dialog, text="Exportieren", command=on_ok, bg="lightgreen").pack(pady=15)
                             self.tree.master.wait_window(dialog)
@@ -908,7 +928,11 @@ class HighscoreDeluebs:
                             is_shorts = mapping_result['SHORTS']
                             is_focus = mapping_result['FOCUS']  
                             is_weapon = mapping_result['WAFFE'] 
-                            is_ghost = mapping_result['GHOST'] # <-- NEU: Variable auslesen
+                            is_ghost = mapping_result['GHOST']
+                            
+                            is_gegner_aktiv = mapping_result['GEGNER_AKTIV']
+                            is_gegner_weapon = mapping_result['GEGNER_WAFFE']
+                            is_gegner_ghost = mapping_result['GEGNER_GHOST']
 
                             # ==========================================
                             # 3. JSON verarbeiten (Die smarte Kamera-Regie)
@@ -933,6 +957,7 @@ class HighscoreDeluebs:
                             
                             last_L = []
                             last_B = []
+                            owner_of_2 = None
                             
                             for ev in timeline:
                                 action = ev.get("a", "")
@@ -951,7 +976,7 @@ class HighscoreDeluebs:
                                         
                                         timing.append(round(t_video, 2))
                                         sequence_pov.append("DOWN")
-                                        sequence_gegner.append(-1)
+                                        sequence_gegner.append("DOWN") # <-- NEU: Gegner senkt die Waffe!
                                         
                                         gold_l.append(last_L if color_map_L == 0 else [])
                                         blau_l.append(last_L if color_map_L == 1 else [])
@@ -985,7 +1010,7 @@ class HighscoreDeluebs:
                                                 
                                                 timing.append(round(t_video, 2))
                                                 sequence_pov.append("UP")       
-                                                sequence_gegner.append(-1)
+                                                sequence_gegner.append("UP") # <-- NEU: Gegner hebt die Waffe!
                                                 frame_hinzugefuegt = True
                                                 
                                     elif m not in ACTION_STATES:
@@ -1021,13 +1046,16 @@ class HighscoreDeluebs:
                                     L_list = ev.get("L", [])
                                     B_list = ev.get("B", [])
                                     
-                                    def process_colors(leds, mode):
-                                        if mode == 0: return [], leds       
-                                        if mode == 1: return leds, []       
+                                    # --- NEU: Funktion übergibt und speichert den Besitzer ---
+                                    def process_colors(leds, mode, current_owner):
+                                        if mode == 0: return [], leds, current_owner       
+                                        if mode == 1: return leds, [], current_owner       
                                         
                                         g_out, b_out = [], []
                                         g_count = sum(1 for x in leds if x in [0, 1])
                                         b_count = sum(1 for x in leds if x in [3, 4])
+                                        
+                                        new_owner = current_owner
                                         
                                         for x in leds:
                                             if x in [0, 1]: 
@@ -1035,15 +1063,28 @@ class HighscoreDeluebs:
                                             elif x in [3, 4]: 
                                                 b_out.append(x)
                                             elif x == 2:
-                                                if g_count > b_count: 
+                                                # Hat das Ziel noch keinen Besitzer? Dann JETZT anhand Mehrheit ermitteln!
+                                                if new_owner is None:
+                                                    if g_count > b_count: 
+                                                        new_owner = "GOLD"
+                                                    else: 
+                                                        new_owner = "BLAU" # (Blau gewinnt nur, wenn es wirklich Gleichstand zur Eroberungszeit gibt)
+                                                        
+                                                # Ziel anhand des festen Besitzers zuweisen
+                                                if new_owner == "GOLD":
                                                     g_out.append(x)
-                                                else: 
+                                                else:
                                                     b_out.append(x) 
                                                     
-                                        return g_out, b_out
+                                        # Wenn Ziel 2 ausgegangen ist (z.B. neues Match/Reset), Besitzer löschen!
+                                        if 2 not in leds:
+                                            new_owner = None
+                                            
+                                        return g_out, b_out, new_owner
                                         
-                                    cur_gold_l, cur_blau_l = process_colors(L_list, color_map_L)
-                                    cur_gold_b, cur_blau_b = process_colors(B_list, color_map_B)
+                                    # Farben durch die Maschine jagen und Besitzer aktualisieren
+                                    cur_gold_l, cur_blau_l, owner_of_2 = process_colors(L_list, color_map_L, owner_of_2)
+                                    cur_gold_b, cur_blau_b, owner_of_2 = process_colors(B_list, color_map_B, owner_of_2)
                                     
                                     gold_l.append(cur_gold_l)
                                     blau_l.append(cur_blau_l)
@@ -1055,7 +1096,7 @@ class HighscoreDeluebs:
                                 t_video += 1.5
                                 timing.append(round(t_video, 2))
                                 sequence_pov.append("DOWN")
-                                sequence_gegner.append(-1)
+                                sequence_gegner.append("DOWN") # <-- NEU: Gegner senkt die Waffe!
                                 gold_l.append([])
                                 blau_l.append([])
                                 gold_b.append([])
@@ -1065,7 +1106,10 @@ class HighscoreDeluebs:
                                 "MATCH_ID": match_id,
                                 "POV_SPIELER": entry.get('spieler') if pov_num == 1 else entry.get('spieler2'),
                                 "WAFFEN_PROFIL": is_weapon,
-                                "GHOST_MODUS": is_ghost, # <-- NEU: In das Dictionary eingefügt
+                                "GHOST_MODUS": is_ghost,
+                                "GEGNER_ANZEIGEN": is_gegner_aktiv,      # <-- NEU
+                                "WAFFEN_PROFIL_GEGNER": is_gegner_weapon, # <-- NEU
+                                "GHOST_MODUS_GEGNER": is_gegner_ghost,    # <-- NEU
                                 "YOUTUBE_SHORTS": is_shorts,  
                                 "FOCUS_WAYPOINTS": is_focus, 
                                 "TIMING": timing,
@@ -1106,7 +1150,10 @@ class HighscoreDeluebs:
                                 f'    "MATCH_ID": {video_config["MATCH_ID"]},',
                                 f'    "POV_SPIELER": "{video_config["POV_SPIELER"]}",',
                                 f'    "WAFFEN_PROFIL": "{video_config["WAFFEN_PROFIL"]}",',
-                                f'    "GHOST_MODUS": {"true" if video_config["GHOST_MODUS"] else "false"},', # <-- NEU: In den Text-Export eingefügt
+                                f'    "GHOST_MODUS": {"true" if video_config["GHOST_MODUS"] else "false"},',
+                                f'    "GEGNER_ANZEIGEN": {"true" if video_config["GEGNER_ANZEIGEN"] else "false"},',
+                                f'    "WAFFEN_PROFIL_GEGNER": "{video_config["WAFFEN_PROFIL_GEGNER"]}",',
+                                f'    "GHOST_MODUS_GEGNER": {"true" if video_config["GHOST_MODUS_GEGNER"] else "false"},',
                                 f'    "YOUTUBE_SHORTS": {"true" if video_config["YOUTUBE_SHORTS"] else "false"},',
                                 f'    "FOCUS_WAYPOINTS": {"true" if video_config["FOCUS_WAYPOINTS"] else "false"},',
                                 f'    "TIMING":          {format_row(video_config["TIMING"])},',
