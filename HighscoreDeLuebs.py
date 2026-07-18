@@ -56,10 +56,14 @@ class HighscoreDeluebs:
         self.mode_dropdown.pack(side="left", padx=(150, 0))
         self.mode_dropdown.configure(font=('Arial', 30))
         self.mode_dropdown.bind("<Button-1>", lambda event: self.mode_dropdown.focus_set())
-    
+
         # Schließen Button
         close_button = tk.Button(top_frame, text="Schließen", command=self.highscore_window.destroy, font=('Arial', 25))
         close_button.pack(pady=10, side="right", padx=(0, 35))
+
+        # --- NEU: Refresh Button ---
+        refresh_button = tk.Button(top_frame, text="↻", command=self.refresh_table, font=('Arial', 25), bg='lightblue')
+        refresh_button.pack(pady=10, side="right", padx=(15, 0))
     
         # Anzahl-Anzeige
         block = tk.Frame(top_frame)
@@ -468,6 +472,60 @@ class HighscoreDeluebs:
 
     def export_match_to_yaml(self):
         selected_items = self.tree.selection()
+        if not selected_items:
+            return
+
+        # =================================================================
+        # --- 0. GUI ABFRAGE FÜR EXPORT-OPTIONEN ---
+        # =================================================================
+        top = self.tree.winfo_toplevel()
+        dialog = tk.Toplevel(top)
+        dialog.title("YAML Export-Optionen")
+        dialog.geometry("350x200")
+        dialog.transient(top)
+        dialog.grab_set()
+
+        # Variablen für die Checkboxen
+        var_p1 = tk.BooleanVar(value=True)
+        var_p2 = tk.BooleanVar(value=True)
+        var_comp = tk.BooleanVar(value=True)
+
+        # UI Layout
+        tk.Label(dialog, text="Wer soll im Replay schießen?", font=("Arial", 10, "bold")).pack(pady=(10, 5))
+        tk.Checkbutton(dialog, text="Spieler 1 (p=0) exportieren", variable=var_p1).pack(anchor="w", padx=40)
+        tk.Checkbutton(dialog, text="Spieler 2 (p=1) exportieren", variable=var_p2).pack(anchor="w", padx=40)
+
+        tk.Label(dialog, text="Zeiteinstellungen:", font=("Arial", 10, "bold")).pack(pady=(15, 5))
+        tk.Checkbutton(dialog, text="Ladezeit stauchen (Normaler Export)", variable=var_comp).pack(anchor="w", padx=40)
+
+        # Speicher für das Ergebnis
+        export_optionen = {}
+
+        def on_ok():
+            export_optionen["p1_aktiv"] = var_p1.get()
+            export_optionen["p2_aktiv"] = var_p2.get()
+            export_optionen["stauchung"] = var_comp.get()
+            dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        # Buttons
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(side="bottom", fill="x", pady=15)
+        tk.Button(btn_frame, text="Exportieren", command=on_ok, width=15).pack(side="left", padx=20)
+        tk.Button(btn_frame, text="Abbrechen", command=on_cancel, width=15).pack(side="right", padx=20)
+
+        # Warten, bis der Dialog geschlossen wird
+        top.wait_window(dialog)
+
+        # Wurde abgebrochen?
+        if not export_optionen:
+            return
+
+        # =================================================================
+        # --- HAUPT-EXPORT-LOGIK STARTET HIER ---
+        # =================================================================
         for item in selected_items:
             values = self.tree.item(item, "values")
             
@@ -485,7 +543,7 @@ class HighscoreDeluebs:
                                     geladene_daten = json.load(f)
                                     # --- Der neue, strenge Türsteher ---
                                     if not isinstance(geladene_daten, dict) or "timeline" not in geladene_daten:
-                                        #from tkinter import messagebox
+                                        from tkinter import messagebox
                                         messagebox.showinfo(
                                             "Replay nicht möglich", 
                                             f"Match {match_id} verwendet ein veraltetes Speicherformat.\n\n"
@@ -546,29 +604,26 @@ class HighscoreDeluebs:
                                     # =================================================================
                                     # --- 3. METADATEN NORMALISIEREN & REPLAY-SPEEDUPS ---
                                     # =================================================================
-                                    # Spieler-Namen absichern (falls sie fehlen oder None sind)
+                                    # Spieler-Namen absichern
                                     metadata["spieler"] = metadata.get("spieler", "Spieler 1")
-                                    # Wenn spieler2 'None' oder leer ist, machen wir sicher einen Leerstring "" daraus
                                     metadata["spieler2"] = metadata.get("spieler2") or "" 
 
-                                    # Fallback für alte Matches mit "Alarmanlage" auf der Konsole
+                                    # Fallback für alte Matches
                                     if "default_feuerzeit" not in metadata:
                                         fallback_wert = metadata.get("feuer", 10)
                                         print(f"⚠️ HINWEIS (Match {match_id}): 'default_feuerzeit' fehlt. Nutze Fallback 'feuer' ({fallback_wert}s).")
                                         metadata["default_feuerzeit"] = fallback_wert
 
-                                    # Originale Ladezeit sichern
+                                    # --- GUI-STEUERUNG FÜR DIE STAUCHUNGSFUNKTION ---
                                     lg = metadata.get("ladenGelb", 3)
-                                    new_lg = lg 
-                                    
-                                    ## Smart-Speedups anwenden
-                                    #if "(dev)" in programm_name:
-                                    #    metadata["vorbereiten"] = 1
-                                    #    metadata["ladenGelb"] = 1
-                                    #    new_lg = 1
-                                    #else:
-                                    #    new_lg = min(lg, 3)
-                                    #    metadata["ladenGelb"] = new_lg
+                                    if export_optionen["stauchung"]:
+                                        # Stauchung AKTIVIERT
+                                        new_lg = min(lg, 3) 
+                                    else:
+                                        # Stauchung DEAKTIVIERT (Originalwerte bleiben)
+                                        new_lg = lg
+                                        
+                                    metadata["ladenGelb"] = new_lg
 
                                     # =================================================================
                                     # --- 4. INITIALISIERUNG & HISTORISCHE ZEITKAPSEL ---
@@ -605,10 +660,7 @@ class HighscoreDeluebs:
                                             yaml_lines.append(f"  - name: \"Wert setzen: {label} ({wert})\"")
                                             yaml_lines.append(f"    action: \"set_sm_attr\"")
                                             
-                                            # Trick: 'default_feuerzeit' wird im StateManager auf 'feuer' gemappt
                                             ziel_attribut = "feuer" if key == "default_feuerzeit" else key
-                                            
-                                            # YAML-Formatierung: Strings brauchen Anführungszeichen, Zahlen nicht!
                                             wert_str = f'"{wert}"' if isinstance(wert, str) else wert
                                             
                                             yaml_lines.append(f"    wert: [\"{ziel_attribut}\", {wert_str}]")
@@ -634,12 +686,9 @@ class HighscoreDeluebs:
                                     current_state = ""
                                     accumulated_delay_ms = 0
                                     phase_t_orig_ms = 0 
-                                    # --- NEU ---
                                     pending_survival_feuer = None
                                     
                                     lg_safe = max(1, lg)
-
-                                    # --- ELA FIX: Wir syncen den Jäger nur EIN EINZIGES MAL am Start! ---
                                     jaeger_initialisiert = False
 
                                     for ev in timeline:
@@ -647,6 +696,14 @@ class HighscoreDeluebs:
                                         t_orig_ms = int(ev.get('t', 0.0) * 1000)
                                         z = max(0, ev.get('z', -1))
                                         m = ev.get('m', '')
+                                        
+                                        # --- GUI-STEUERUNG FÜR DIE SPIELER ---
+                                        # Wir filtern die unerwünschten Schüsse heraus, BEVOR sie verarbeitet werden.
+                                        if action_type == "shoot":
+                                            p_idx = ev.get('p', 0)
+                                            if (p_idx == 0 and not export_optionen["p1_aktiv"]) or (p_idx == 1 and not export_optionen["p2_aktiv"]):
+                                                # Trick: Wir benennen das Event um. Dadurch fängt es unten dein "else" Block auf!
+                                                action_type = "übersprungen"
                                         
                                         # --- Start-Aufstellung setzen und dann die Engine machen lassen ---
                                         if not jaeger_initialisiert:
@@ -669,7 +726,7 @@ class HighscoreDeluebs:
                                         # ----------------------------------------------
                                         
                                         delta_orig_ms = max(0, t_orig_ms - last_t_orig_ms)
-                                        delta_new_ms = delta_orig_ms # Standardmäßig 1:1
+                                        delta_new_ms = delta_orig_ms 
                                         
                                         # --- DIE GENIALE 2-SEKUNDEN-LOGIK ---
                                         if current_state == "LADEN" and lg_safe > new_lg:
@@ -758,10 +815,9 @@ class HighscoreDeluebs:
                                         # --- SURVIVAL SYNC FIX (Speichern statt sofort ausführen) ---
                                         # =========================================================
                                         elif action_type == "survival_update":
-
                                             val_v = ev.get('v')
                                             if val_v is not None:
-                                                feuer_neu = float(val_v) # Zwingt es zur Zahl, egal ob String oder int
+                                                feuer_neu = float(val_v) 
                                             else:
                                                 feuer_neu = 0
                                                 print("Achtung survival_update hatte keinen Wert bei v")
@@ -781,10 +837,10 @@ class HighscoreDeluebs:
                                         else:
                                             # --- DER BUGFIX ---
                                             # Unbekannte oder rein textuelle Events (z.B. "Bonus Spieler 1") 
-                                            # werden im Replay nicht geklickt, dürfen aber keine Zeit verschlucken!
+                                            # ODER übersprungene Schüsse (!) landen hier und sparen ihre Zeit auf.
                                             accumulated_delay_ms += delta_new_ms
 
-                                            
+                                        
                                         last_t_orig_ms = t_orig_ms
 
                                     yaml_lines.append(f"  - name: \"GUI schließen\"")
@@ -808,7 +864,8 @@ class HighscoreDeluebs:
                         else:
                             from tkinter import messagebox
                             messagebox.showwarning("Nicht gefunden", f"Kein Detail-Log für Match {match_id} gefunden.")
-    
+
+
     def export_video_config(self):
         selected_items = self.tree.selection()
         if not selected_items:
@@ -1281,6 +1338,24 @@ class HighscoreDeluebs:
 
     def load_scores(self):
         self.highscore_manager.load_highscores()
+
+    def refresh_table(self):
+        """Lädt die JSON neu von der Festplatte und zeichnet die Tabelle neu."""
+        # 1. Daten frisch von der Festplatte in den RAM laden
+        self.load_scores()
+        
+        # 2. Die Anzahl der Einträge oben rechts aktualisieren
+        self.anzahl_eintraege.set(len(self.highscore_manager.data))
+        
+        # 3. Das Dropdown-Menü aktualisieren (falls im Replay ein völlig neuer Modus gespielt wurde)
+        modes = sorted(set(entry["programm_name"] for entry in self.highscore_manager.data))
+        self.mode_dropdown.configure(values=["Alle Modi"] + list(modes))
+        
+        # 4. Tabelle neu zeichnen
+        # ACHTUNG: Hier musst du die Funktion aufrufen, die du auch benutzt, 
+        # wenn du im Dropdown einen Modus wechselst. 
+        # (Meistens heißt die sowas wie self.update_tree() oder self.populate_table())
+        self.update_highscores() # <-- DIESEN NAMEN BITTE AN DEINEN CODE ANPASSEN
 
     def save_match(self, match_timeline, highscore_entry):
         """Speichert den Event-Log zusammen mit den Metadaten"""
