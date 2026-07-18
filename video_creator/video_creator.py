@@ -940,17 +940,10 @@ def build_video():
     
     gun_clip = gun_clip_dynamic.with_mask(gun_mask_dynamic)
     
-    # --- NEU: DER GHOST-MODUS ---
-    GHOST_MODUS = cfg.get("GHOST_MODUS", False) # Das liest du oben bei den anderen cfg.get() ein
-    if GHOST_MODUS:
-        gun_clip = gun_clip.with_opacity(0.4) # 40% Deckkraft = Perfekter Geister-Look!
-    
     # 6. Schwenken und Shake aus der Engine anwenden
     gun_clip = gun_clip.with_position(get_gun_position)
     # expand=False verhindert, dass sich das Bild beim Drehen aufbläht
     gun_clip = gun_clip.with_effects([vfx.Rotate(angle=get_gun_rotation, expand=False)])
-
-
 
     # --- D. SANDWICH BAUEN & EXPORT ---
     
@@ -960,11 +953,12 @@ def build_video():
 
     # Wenn der Ghost-Modus an ist, Gegner transparent machen
     if GHOST_MODUS_GEGNER:
-        gegner_gun_clip = gegner_gun_clip.with_opacity(0.35) # Leicht durchsichtig
+        gegner_gun_clip = gegner_gun_clip.with_opacity(0.5) # Leicht durchsichtig
         
     # Auch der POV Spieler kann ein Geist sein (je nach Konfiguration)
-    if cfg.get("GHOST_MODUS", False):
-        gun_clip = gun_clip.with_opacity(0.4)
+    GHOST_MODUS = cfg.get("GHOST_MODUS", False)
+    if GHOST_MODUS:
+        gun_clip = gun_clip.with_opacity(0.5) 
 
     # Reihenfolge: Basis -> Scharfer Fokus -> Gegner (Geist) -> POV Spieler (Vordergrund)
     final_video = CompositeVideoClip(
