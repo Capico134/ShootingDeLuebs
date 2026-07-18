@@ -4,6 +4,7 @@ import math
 import numpy as np
 import json
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
+import random
 from moviepy import (
     VideoFileClip, ImageClip, CompositeVideoClip, VideoClip, 
     concatenate_videoclips, vfx, CompositeAudioClip, AudioFileClip
@@ -16,6 +17,60 @@ import sys
 import os
 import json
 
+# Versuchen, das Bullet-Hole Bild zu laden
+try:
+    BULLET_IMG = Image.open("Bullet.png").convert("RGBA")
+except FileNotFoundError:
+    # Dummy, falls Datei fehlt
+    BULLET_IMG = Image.new("RGBA", (50, 50), (100, 100, 100, 150))
+    print("WARNUNG: Bullet.png nicht gefunden, nutze Dummy-Hole.")
+
+def stamp_bullet_hole(canvas, target_coords, scale=1.0, offset_x=0, offset_y=0, random_r=15, alpha=1.0):
+    """Stempelt das Bullet.png mit Skalierung, Offsets, Zufall UND Transparenz."""
+    if scale != 1.0:
+        new_size = (int(BULLET_IMG.size[0] * scale), int(BULLET_IMG.size[1] * scale))
+        bullet = BULLET_IMG.resize(new_size, Image.Resampling.LANCZOS)
+    else:
+        bullet = BULLET_IMG.copy()
+        
+    # --- NEU: Die Alpha-Magie ---
+    if alpha != 1.0:
+        # Wir trennen Rot, Grün, Blau und Alpha
+        r, g, b, a = bullet.split()
+        # Wir multiplizieren die Deckkraft mit deinem Wert (z.B. 0.2)
+        a = a.point(lambda p: int(p * alpha))
+        # Und verheiraten die Kanäle wieder
+        bullet = Image.merge("RGBA", (r, g, b, a))
+        
+    # Zufallsabweichung
+    dx = random.uniform(-random_r, random_r)
+    dy = random.uniform(-random_r, random_r)
+    
+    final_x = int(target_coords[0] + dx + offset_x - (bullet.size[0] / 2))
+    final_y = int(target_coords[1] + dy + offset_y - (bullet.size[1] / 2))
+    
+    canvas.paste(bullet, (final_x, final_y), bullet)
+
+def kill_green_spill(frame):
+    """
+    Erkennt grüne Licht-Reflexionen (Spill) an Kanten und 
+    drückt den Grün-Wert auf das Maximum von Rot oder Blau herunter.
+    """
+    # Rot, Grün und Blau trennen
+    r = frame[:, :, 0]
+    g = frame[:, :, 1]
+    b = frame[:, :, 2]
+    
+    # Wo ist das Maximum von Rot und Blau?
+    max_rb = np.maximum(r, b)
+    
+    # Grün darf nicht stärker strahlen als Rot/Blau!
+    new_g = np.minimum(g, max_rb-10)
+    #new_g = g
+    
+    # Kanäle wieder zusammensetzen
+    return np.dstack((r, new_g, b))
+
 # Welches JSON soll geladen werden?
 if len(sys.argv) > 1:
     CONFIG_DATEI = sys.argv[1]
@@ -27,6 +82,9 @@ with open(CONFIG_DATEI, "r", encoding="utf-8") as f:
 
 YOUTUBE_SHORTS_MODUS = cfg.get("YOUTUBE_SHORTS", False)
 FOCUS_WAYPOINTS_MODUS = cfg.get("FOCUS_WAYPOINTS", False)
+
+# --- NEU: Die Toleranz für den Autofokus ---
+FOCUS_SNAP_TOLERANCE = 0.05  # Ab welcher Nähe zum Ziel (z.B. 2.05) soll die Holzscheibe scharfgestellt werden?
 
 # --- NEU: Die Waffe aus der JSON auslesen (Fallback auf "SteyrLP50", falls nichts drinsteht) ---
 WAFFEN_PROFIL = cfg.get("WAFFEN_PROFIL", "SteyrLP50")
@@ -55,22 +113,40 @@ PROFILES = {
         "OFFSET_Y": -70-45,
         # --- NEU: Eigene Greenscreen-Werte ---
         "GS_COLOR": [57, 177, 65],
-        "GS_THRESH": 88
+        #"GS_THRESH": 88,
+        "GS_THRESH": 75,
+        "CROP": (0, 120, 1120, 720)
     },
+    #"SteyrLP50": {
+    #    "TARGETS": [(2138+26, 440+45), (1649+26, 442+45), (1173+26, 443+45), (697+26, 443+45), (212+26, 443+45)],
+    #    "IDLE_IMG": "standbild_SteyrLP50.png",
+    #    "SHOOT_VID": "schuss_SteyrLP50.mp4",
+    #    "T_IMPACT": 1.50,
+    #    "CLIP_DURATION": 2.7,
+    #    "MIN_RECOIL": 0.6,
+    #    "ZOOM": 1.3,          # <-- HIER: 25% reingezoomt!
+    #    "OFFSET_X": -155-460-205-26,  # Ggf. anpassen, wenn das Bild durch den Zoom verrutscht
+    #    "OFFSET_Y": -70+39-45,
+    #    # --- NEU: Eigene Greenscreen-Werte ---
+    #    "GS_COLOR": [57, 177, 65],
+    #    "GS_THRESH": 88
+    #}
     "SteyrLP50": {
         "TARGETS": [(2138+26, 440+45), (1649+26, 442+45), (1173+26, 443+45), (697+26, 443+45), (212+26, 443+45)],
-        "IDLE_IMG": "standbild_SteyrLP50.png",
-        "SHOOT_VID": "schuss_SteyrLP50.mp4",
-        "T_IMPACT": 1.50,
-        "CLIP_DURATION": 2.7,
+        "IDLE_IMG": "standbild_Steyr_1080.png",
+        "SHOOT_VID": "schuss_Steyr_1080p.mp4",
+        #"T_IMPACT": 1.575,
+        "T_IMPACT": 2.55,
+        "CLIP_DURATION": 4.75,
         "MIN_RECOIL": 0.6,
-        "ZOOM": 1.3,          # <-- HIER: 25% reingezoomt!
-        "OFFSET_X": -155-460-205-26,  # Ggf. anpassen, wenn das Bild durch den Zoom verrutscht
-        "OFFSET_Y": -70+39-45,
+        "ZOOM": 1.0,          # <-- HIER: 25% reingezoomt!
+        "OFFSET_X":-786+2138-1649-38+5,  # Ggf. anpassen, wenn das Bild durch den Zoom verrutscht
+        "OFFSET_Y": -70+39-45+40,
         # --- NEU: Eigene Greenscreen-Werte ---
-        "GS_COLOR": [57, 177, 65],
-        "GS_THRESH": 88
-    }
+        "GS_COLOR": [0, 185, 15],
+        "GS_THRESH": 105,
+        "CROP": None
+    }   
 }
 
 # Das aktive Profil laden
@@ -118,16 +194,28 @@ BLAU_BLINKEND = cfg["BLAU_BLINKEND"]
 #    (202, 433) # Ziel 4 (ganz rechts)
 #]
 
+# --- NEU: Die magische Trigger-Weiche ---
+def is_shot(val):
+    """Prüft, ob der Abzug gedrückt wird (Treffer oder Fehlschuss)"""
+    if isinstance(val, int) and 0 <= val < 10: 
+        return True # Echter Treffer (0-9)
+    if isinstance(val, (int, float)) and val >= 10: 
+        return True # Fehlschuss (+10 Offset)
+    return False
 
 # --- NEU: Koordinaten auch für Kommazahlen (Fake-Bewegungen) berechnen ---
+# --- Koordinaten berechnen (mit +10 Fix) ---
 def get_target_coords(val):
+    # Wenn es ein Fehlschuss ist, ziehen wir die 10 für die Position einfach ab!
+    if isinstance(val, (int, float)) and val >= 10:
+        val = val - 10
+
     if isinstance(val, int):
         return TARGETS[val]
     elif isinstance(val, float):
         lower = int(math.floor(val))
         upper = int(math.ceil(val))
         
-        # Sicherheits-Clip, falls mal jemand 4.5 eingibt
         upper = min(upper, len(TARGETS) - 1)
         lower = min(lower, len(TARGETS) - 1)
         
@@ -146,7 +234,7 @@ def get_target_coords(val):
 # Einmalige Vorberechnung für die Kamera (mit Versteck-Logik)
 # ==========================================
 HIDE_OFFSET_Y = 1000 
-HIDE_OFFSET_Y_GEGNER = 1800
+HIDE_OFFSET_Y_GEGNER = 2000
 GUN_WAYPOINTS = []
 
 def find_target(start_idx, direction=1):
@@ -193,17 +281,33 @@ for i, val in enumerate(SEQUENCE_POV):
         GUN_WAYPOINTS.append((current_t, pos))
         last_valid_pos = pos
         
-        # --- DIE ZUWEISUNGS-WEICHE ---
+        # --- DIE ZUWEISUNGS-WEICHE (SMARTER AUTOFOKUS) ---
         if FOCUS_WAYPOINTS_MODUS:
-            # Wenn entkoppelt werden soll: Nur Ganzzahlen (echte Ziele) in den Fokus!
-            if isinstance(val, int):
-                FOCUS_WAYPOINTS.append((current_t, pos))
-                last_valid_focus = pos
+            # 1. Den "nackten" Wert berechnen (Fehlschuss-Offset +10 abziehen)
+            raw_val = val - 10 if val >= 10 else val
+            
+            # 2. Welches Ziel ist am nächsten? (Sicherstellen, dass es zwischen 0 und 4 bleibt)
+            closest_target = int(round(raw_val))
+            closest_target = max(0, min(closest_target, len(TARGETS) - 1))
+            
+            # 3. Wie weit zielt die Waffe vom perfekten Zentrum weg?
+            distance = abs(raw_val - closest_target)
+            
+            # 4. Das magische Kamera-Auge:
+            if is_shot(val) or distance <= FOCUS_SNAP_TOLERANCE:
+                # SCHUSS oder GANZ NAH DRAN: Fokus rastet knallhart auf der Holzscheibe ein!
+                focus_pos = TARGETS[closest_target]
+                FOCUS_WAYPOINTS.append((current_t, focus_pos))
+                last_valid_focus = focus_pos
+            else:
+                # KÄNGURU-SCHWENK INS LEERE: 
+                # Wir setzen absichtlich KEINEN Wegpunkt. Dadurch zieht die Engine die 
+                # Schärfe später butterweich über diesen Moment hinweg zum nächsten echten Ziel!
+                pass
         else:
-            # Wenn nicht entkoppelt wird: Fokus läuft 1:1 synchron zur Waffe
+            # Wenn nicht entkoppelt wird: Fokus läuft 1:1 stur synchron zur Waffe
             FOCUS_WAYPOINTS.append((current_t, pos))
             last_valid_focus = pos
-
 
 
 # ==========================================
@@ -332,57 +436,63 @@ def get_focus_target_info(t):
     return FOCUS_WAYPOINTS[-1][1], FOCUS_WAYPOINTS[-1][1], 1.0
 
 def get_camera_shake(t):
-    """Wackelt NUR bei echten Schüssen, nicht bei UP/DOWN Fahrten!"""
+    """Wackelt bei ALLEN Schüssen (Treffer und Fehlschüsse)"""
     for i, wp_time in enumerate(TIMING):
         val = SEQUENCE_POV[i]
-        # Ist es ein echter Schuss (Zahl 0 bis 4)?
-        if isinstance(val, int) and val >= 0:
+        
+        # HIER DEN HELFER NUTZEN:
+        if is_shot(val):
             if wp_time < t < (wp_time + 0.2): 
-                # BÄM! Rückstoß
                 time_since_shot = t - wp_time
                 shake_y = math.sin(time_since_shot * 100) * 6
                 shake_x = math.cos(time_since_shot * 80) * 3
                 return shake_x, shake_y
-    return 0, 0 
+    return 0, 0
 
-SMOOTH_FOCUS = False
+#SMOOTH_FOCUS = True
 
-def get_focus_position(t):
-    """Berechnet die exakte (X,Y) Position für die scharfe Maske."""
-    # HIER ist die Weiche: Wir nutzen den neuen Fokus-Motor!
-    start_pos, end_pos, progress = get_focus_target_info(t)
-    
-    if SMOOTH_FOCUS:
-        x = start_pos[0] + (end_pos[0] - start_pos[0]) * progress
-        y = start_pos[1] + (end_pos[1] - start_pos[1]) * progress
-        return x, y
-    else:
-        # Sniper-Modus
-        if progress < 1.0:
-            return end_pos
-        else:
-            return end_pos
-
-def get_gun_position(t):
-    """Gleitet sanft, nutzt den normalen Motor für die Pistole!"""
-    # HIER nutzen wir weiterhin den normalen Waffen-Motor!
+def get_aim_position(t):
+    """
+    DIE MASTER-KOORDINATE: Berechnet das exakte Fadenkreuz der Waffe 
+    (inkl. Atmen und Rückstoß-Wackeln).
+    """
     start_pos, end_pos, progress = get_current_target_info(t)
     
-    # 1. Basis-Koordinaten berechnen
+    # 1. Die cleane Basis-Koordinate
     base_x = start_pos[0] + (end_pos[0] - start_pos[0]) * progress
     base_y = start_pos[1] + (end_pos[1] - start_pos[1]) * progress
     
     # 2. Atmen und Wackeln hinzufügen
     breath_x = math.sin(t * 1.5) * 4
     breath_y = math.cos(t * 1.2) * 6
-    
     base_shake_x, base_shake_y = get_camera_shake(t)
     
-    final_x = base_x + breath_x + (base_shake_x * 2) + GUN_OFFSET_X
-    final_y = base_y + breath_y + (base_shake_y * 2) + GUN_OFFSET_Y
+    aim_x = base_x + breath_x + (base_shake_x * 2)
+    aim_y = base_y + breath_y + (base_shake_y * 2)
     
-    final_y = min(final_y, 915)
-    return (final_x, final_y)
+    return aim_x, aim_y
+
+def get_focus_position(t):
+    """Berechnet die exakte (X,Y) Position für die scharfe Maske."""
+    
+    if FOCUS_WAYPOINTS_MODUS:
+        # 1. Smart-Autofokus (Der Kameramann entscheidet)
+        # IMMER harter Cut, um den unschönen "Taschenlampen-Effekt" zu vermeiden.
+        _, end_pos, _ = get_focus_target_info(t)
+        return end_pos[0], end_pos[1]
+    else:
+        # 2. Stur an die Waffe gekoppelt (Klassischer Modus)
+        # IMMER butterweich, da wir das atmende/wackelnde Fadenkreuz exakt abzapfen!
+        return get_aim_position(t)
+
+def get_gun_position(t):
+    """Positioniert das Waffen-Bild (holt sich die Master-Koordinate + eigenen Offset)"""
+    aim_x, aim_y = get_aim_position(t)
+    
+    final_x = aim_x + GUN_OFFSET_X
+    final_y = aim_y + GUN_OFFSET_Y
+    
+    return (final_x, min(final_y, 915))
 
 
 ###################### GEGNER GEISTER POSITION ######################
@@ -422,7 +532,40 @@ def get_gegner_gun_position(t):
     final_y = base_y + breath_y + active_gegner_gun["OFFSET_Y"]
     return (final_x, min(final_y, 915))
 
+# ==========================================
+# NEU: Das entspannte Handgelenk (Nur bei DOWN)
+# ==========================================
 
+def get_gun_rotation(t):
+    """Berechnet die Neigung der POV-Waffe (Handgelenk kippt schnell ab)"""
+    for i in range(len(GUN_WAYPOINTS) - 1):
+        t_start, p_start = GUN_WAYPOINTS[i]
+        t_end, p_end = GUN_WAYPOINTS[i+1]
+        
+        if t_start <= t < t_end:
+            # Ist es eine DOWN-Bewegung?
+            if p_end[1] > p_start[1] + 500:
+                duration = t_end - t_start
+                raw_progress = (t - t_start) / duration
+                
+                # Hoch 0.5 (Wurzel) = Drehung startet SOFORT, noch bevor die Waffe tief fällt!
+                return 7.0 * (raw_progress ** 1.25)
+    return 0.0
+
+def get_gegner_gun_rotation(t):
+    """Berechnet die Neigung für den Gegner"""
+    for i in range(len(GEGNER_WAYPOINTS) - 1):
+        t_start, p_start = GEGNER_WAYPOINTS[i]
+        t_end, p_end = GEGNER_WAYPOINTS[i+1]
+        
+        if t_start <= t < t_end:
+            if p_end[1] > p_start[1] + 500:
+                duration = t_end - t_start
+                raw_progress = (t - t_start) / duration
+                
+                # Gegner dreht sich etwas weniger (10 Grad)
+                return 3.5 * (raw_progress ** 0.5)
+    return 0.0
 
 
 
@@ -440,9 +583,49 @@ def build_video():
     bg_img = Image.open(BG_IMAGE)
     bg_w, bg_h = bg_img.size
 
+
     def make_bg_frame(t):
         # 1. Frische Kopie vom Hintergrund nehmen
         img_copy = bg_img.copy()
+        
+        # ==========================================================
+        # NEU: Einschusslöcher stempeln (Die Tweak-Zone!)
+        # ==========================================================
+        H_SCALE = 0.18       # Deine perfekt abgestimmte Größe
+        H_OFF_X = -13        # Manuelle Korrektur X
+        H_OFF_Y = 25         # Manuelle Korrektur Y
+        H_RAND_R = 12        # Maximale Zufallsabweichung in Pixeln
+        
+        H_ALPHA_MISS = 0.8   # Hohe Deckkraft für Fehlschüsse (+10)
+        H_ALPHA_HIT = 0.5    # Sanfte Deckkraft für echte Treffer (0-9)
+        
+        for i, wp_time in enumerate(TIMING):
+            # 1. SPIELER (POV)
+            val_pov = SEQUENCE_POV[i]
+            # is_shot() erkennt jetzt echte Treffer UND Fehlschüsse!
+            if is_shot(val_pov) and wp_time <= t:
+                random.seed(str(wp_time) + "_pov") 
+                base_coords = get_target_coords(val_pov)
+                
+                # Alpha festlegen (Fehlschuss oder Hit?)
+                current_alpha = H_ALPHA_MISS if val_pov >= 10 else H_ALPHA_HIT
+                
+                # Stempeln (mit dem neuen Parameter alpha=current_alpha)
+                stamp_bullet_hole(img_copy, base_coords, H_SCALE, H_OFF_X, H_OFF_Y, H_RAND_R, alpha=current_alpha)
+                
+            # 2. GEGNER (GEIST)
+            val_gegner = SEQUENCE_GEGNER[i]
+            if is_shot(val_gegner) and wp_time <= t:
+                random.seed(str(wp_time) + "_gegner") 
+                base_coords = get_target_coords(val_gegner)
+                
+                current_alpha = H_ALPHA_MISS if val_gegner >= 10 else H_ALPHA_HIT
+                
+                stamp_bullet_hole(img_copy, base_coords, H_SCALE, H_OFF_X, H_OFF_Y, H_RAND_R, alpha=current_alpha)
+        # ==========================================================
+        
+        # Erst JETZT den Draw-Kontext für die LEDs aufrufen, 
+        # damit sie über die Löcher gemalt werden!
         draw = ImageDraw.Draw(img_copy)
         
         # 2. Welchen Index (Zeitabschnitt) haben wir gerade?
@@ -465,12 +648,6 @@ def build_video():
             # Soll dieses Ziel Gold oder Blau gezeichnet werden?
             draw_gold = (led_idx in GOLD_LEUCHTEND[current_idx]) or (led_idx in GOLD_BLINKEND[current_idx] and ist_an)
             draw_blau = (led_idx in BLAU_LEUCHTEND[current_idx]) or (led_idx in BLAU_BLINKEND[current_idx] and ist_an)
-            
-            #if draw_gold:
-            #    # --- GOLDGELB ---
-            #    draw.ellipse((lx - radius, ly - radius, lx + radius, ly + radius), fill=(255, 190, 80)) 
-            #    draw.ellipse((lx - 25, ly - 25, lx + 25, ly + 25), fill=(255, 230, 150))
-            #    draw.ellipse((lx - 10, ly - 10, lx + 10, ly + 10), fill=(220, 240, 255))
 
             if draw_gold:
                 # --- GOLDGELB ---
@@ -489,6 +666,8 @@ def build_video():
                 draw.ellipse((lx - 10, ly - 10, lx + 10, ly + 10), fill=(20, 20, 25))
 
         return np.array(img_copy)
+
+
 
     def make_base_bg_frame(t):
         """Das ist unsere unterste Sandwich-Scheibe (Der Raum außerhalb des Fokus)"""
@@ -528,30 +707,6 @@ def build_video():
             self.last_pos = None  # Merkt sich die letzte Koordinate
             self.last_mask = None # Merkt sich das fertig berechnete Bild
 
-        #def create_mask_frame(self, t):
-        #    w, h = self.size
-        #    cx, cy = get_focus_position(t)
-        #    
-        #    # 1. CACHE-CHECK: Hat sich die Position überhaupt verändert?
-        #    if self.last_pos == (cx, cy) and self.last_mask is not None:
-        #        # CPU RETTUNG: Position ist gleich! Wir überspringen die 
-        #        # gesamte Mathematik und geben das Bild vom letzten Frame zurück.
-        #        return self.last_mask
-        #    
-        #    # 2. NEUBERECHNUNG (Nur wenn sich das Ziel bewegt hat)
-        #    y, x = np.ogrid[:h, :w]
-        #    dist = np.sqrt((x - cx)**2 + (y - cy)**2)
-        #    
-        #    radius = 130
-        #    feather = 75
-        #    mask = np.clip((radius + feather - dist) / feather, 0, 1)
-        #    
-        #    # 3. CACHE UPDATEN: Neue Daten für den nächsten Frame merken
-        #    self.last_pos = (cx, cy)
-        #    self.last_mask = mask# Basis-Radius
-        #    
-        #    return mask
-
         def create_mask_frame(self, t):
             w, h = self.size
             cx, cy = get_focus_position(t)
@@ -565,13 +720,12 @@ def build_video():
             
             for i, wp_time in enumerate(TIMING):
                 val = SEQUENCE_POV[i]
-                if isinstance(val, int) and val >= 0:
+                # NUR GANZZAHLEN UNTER 10 ERLAUBT:
+                if isinstance(val, int) and 0 <= val < 10:
                     if wp_time <= t <= (wp_time + 0.15): 
-                        # HIER IST DER TRICK: Wir holen uns die exakte, 
-                        # unbewegliche Position des Ziels, auf das geschossen wird!
                         flash_pos = get_target_coords(val)
                         flash_x, flash_y = flash_pos[0], flash_pos[1]
-                        flash_radius = 175  # Der größere Lichtblitz
+                        flash_radius = 175  
                         break
             
             # 3. CACHE-CHECK: Wir speichern jetzt auch die Flash-Werte im Cache
@@ -612,24 +766,33 @@ def build_video():
 
     # C1 PISTOLE (Greenscreen & Trigger-System) ---
     
-    # 1. Effekte definieren (Crop & Greenscreen dynamisch!)
-    gun_effects = [
-        vfx.Crop(x1=0, y1=120, x2=1120, y2=720), 
+    # 1. Effekte dynamisch zusammenbauen
+    gun_effects = []
+    
+    # Hat die Waffe einen CROP-Parameter? Dann füge ihn als Erstes hinzu!
+    if active_gun.get("CROP") is not None:
+        cx1, cy1, cx2, cy2 = active_gun["CROP"]
+        gun_effects.append(vfx.Crop(x1=cx1, y1=cy1, x2=cx2, y2=cy2))
+        
+    # Danach immer den Greenscreen hinzufügen
+    gun_effects.append(
         vfx.MaskColor(
             color=active_gun.get("GS_COLOR", [57, 177, 65]), 
             threshold=active_gun.get("GS_THRESH", 88), 
-            stiffness=8
+            stiffness=10
         )
-    ]
+    )
     
-    # 2. Assets dynamisch aus dem Waffen-Profil laden
+    # 2. Assets dynamisch aus dem Waffen-Profil laden (und Grün-Schimmer killen!)
     idle_clip = (ImageClip(active_gun["IDLE_IMG"])
                  .with_duration(total_duration)
-                 .with_effects(gun_effects))
+                 .with_effects(gun_effects)
+                 .image_transform(kill_green_spill)) # <--- NEU: Zieht das giftige Grün aus den Rändern!
                  
     recoil_clip = (VideoFileClip(active_gun["SHOOT_VID"])
                    .without_audio()
-                   .with_effects(gun_effects))
+                   .with_effects(gun_effects)
+                   .image_transform(kill_green_spill)) # <--- NEU
                    
     # --- NEU: DEN ZOOM ANWENDEN ---
     if active_gun["ZOOM"] != 1.0:
@@ -645,24 +808,31 @@ def build_video():
     # C2. GEGNER-PISTOLE (Greenscreen & Assets)
     # ==========================================
     
-    # 1. Eigene Effekte für den Gegner definieren (Greenscreen-Werte der Gegner-Waffe!)
-    gegner_effects = [
-        vfx.Crop(x1=0, y1=120, x2=1120, y2=720), 
+    # 1. Effekte dynamisch zusammenbauen (für den Gegner)
+    gegner_effects = []
+    
+    if active_gegner_gun.get("CROP") is not None:
+        cx1, cy1, cx2, cy2 = active_gegner_gun["CROP"]
+        gegner_effects.append(vfx.Crop(x1=cx1, y1=cy1, x2=cx2, y2=cy2))
+        
+    gegner_effects.append(
         vfx.MaskColor(
             color=active_gegner_gun.get("GS_COLOR", [57, 177, 65]), 
             threshold=active_gegner_gun.get("GS_THRESH", 88), 
             stiffness=8
         )
-    ]
+    )
     
     # 2. Gegner-Assets laden
     gegner_idle_clip = (ImageClip(active_gegner_gun["IDLE_IMG"])
                         .with_duration(total_duration)
-                        .with_effects(gegner_effects))
+                        .with_effects(gegner_effects)
+                        .image_transform(kill_green_spill)) # <--- NEU: Zieht das giftige Grün aus den Rändern!
                  
     gegner_recoil_clip = (VideoFileClip(active_gegner_gun["SHOOT_VID"])
                           .without_audio()
-                          .with_effects(gegner_effects))
+                          .with_effects(gegner_effects)
+                          .image_transform(kill_green_spill)) # <--- NEU
                    
     # 3. Zoom für den Gegner anwenden
     if active_gegner_gun["ZOOM"] != 1.0:
@@ -679,7 +849,7 @@ def build_video():
     # ==========================================
     def get_active_gegner_clip_time(t):
         """Spielt das Video (Greenscreen-Rückstoß) NUR bei echten Schüssen ab!"""
-        valid_shots = [TIMING[i] for i, val in enumerate(SEQUENCE_GEGNER) if isinstance(val, int) and val >= 0]
+        valid_shots = [TIMING[i] for i, val in enumerate(SEQUENCE_GEGNER) if is_shot(val)]
         
         for i in range(len(valid_shots) - 1, -1, -1):
             wp_time = valid_shots[i]
@@ -715,18 +885,19 @@ def build_video():
     # Den dynamischen Clip für den Gegner zusammenstecken
     gegner_gun_clip_dynamic = VideoClip(frame_function=make_gegner_gun_frame, duration=total_duration)
     gegner_gun_mask_dynamic = VideoClip(frame_function=make_gegner_gun_mask_frame, is_mask=True, duration=total_duration)
-    
+    # ---> DIESE ZEILE HAT GEFEHLT! (Bild und Maske verheiraten) <---
     gegner_gun_clip = gegner_gun_clip_dynamic.with_mask(gegner_gun_mask_dynamic)
-    
-    # Bewegung und Atmung auf den Gegner anwenden
+    # Bewegung, Atmung UND Rotation auf den Gegner anwenden
     gegner_gun_clip = gegner_gun_clip.with_position(get_gegner_gun_position)
+    # expand=False ist EXTREM WICHTIG, damit der Greenscreen-Rand nicht zerschossen wird!
+    gegner_gun_clip = gegner_gun_clip.with_effects([vfx.Rotate(angle=get_gegner_gun_rotation, expand=False)])
                             
 
     # 3. Die professionelle Time-Warp-Logik
     def get_active_gun_clip_time(t):
         """Spielt das Video (Greenscreen-Rückstoß) NUR bei echten Schüssen ab!"""
         # 1. Wir filtern uns schnell alle ECHTEN Schuss-Zeiten heraus
-        valid_shots = [TIMING[i] for i, val in enumerate(SEQUENCE_POV) if isinstance(val, int) and val >= 0]
+        valid_shots = [TIMING[i] for i, val in enumerate(SEQUENCE_POV) if is_shot(val)]
         
         # 2. Wir prüfen die Zeiten rückwärts
         for i in range(len(valid_shots) - 1, -1, -1):
@@ -776,6 +947,8 @@ def build_video():
     
     # 6. Schwenken und Shake aus der Engine anwenden
     gun_clip = gun_clip.with_position(get_gun_position)
+    # expand=False verhindert, dass sich das Bild beim Drehen aufbläht
+    gun_clip = gun_clip.with_effects([vfx.Rotate(angle=get_gun_rotation, expand=False)])
 
 
 
@@ -816,28 +989,25 @@ def build_video():
         gegner_audio_base = AudioFileClip(GEGNER_AUDIO_FILE)
         
         for i, wp_time in enumerate(TIMING):
-            start_time = None
-            ac_base = None
-            
             val_pov = SEQUENCE_POV[i]
             val_gegner = SEQUENCE_GEGNER[i]
             
-            # Hat der POV-Spieler ECHT geschossen? (Ausschluss von "UP" / "DOWN")
-            if isinstance(val_pov, int) and val_pov >= 0:
+            # 1. Hat der POV-Spieler geschossen? (Treffer oder Fehlschuss)
+            if is_shot(val_pov):
                 start_time = wp_time - POV_AUDIO_IMPACT
-                ac_base = pov_audio_base
-                
-            # Oder hat der Gegner geschossen?
-            elif isinstance(val_gegner, int) and val_gegner >= 0:
-                start_time = wp_time - GEGNER_AUDIO_IMPACT
-                ac_base = gegner_audio_base
-                
-            # Wenn jemand geschossen hat, Clip zuschneiden und anfügen
-            if start_time is not None and ac_base is not None:
                 if start_time < 0:
-                    ac = ac_base.subclipped(-start_time).with_start(0)
+                    ac = pov_audio_base.subclipped(-start_time).with_start(0)
                 else:
-                    ac = ac_base.with_start(start_time)
+                    ac = pov_audio_base.with_start(start_time)
+                audio_clips.append(ac)
+                
+            # 2. Hat der Gegner geschossen? (Unabhängige Abfrage!)
+            if is_shot(val_gegner):
+                start_time = wp_time - GEGNER_AUDIO_IMPACT
+                if start_time < 0:
+                    ac = gegner_audio_base.subclipped(-start_time).with_start(0)
+                else:
+                    ac = gegner_audio_base.with_start(start_time)
                 audio_clips.append(ac)
             
     # Mixdown und unter das Video legen

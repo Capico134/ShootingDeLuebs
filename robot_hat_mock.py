@@ -10,7 +10,7 @@ class LEDMockGUI:
         master.geometry("800x319")
         master.configure(bg="gray95")
         master.wm_attributes("-topmost", True)  # Immer im Vordergrund
-        self.canvas = tk.Canvas(master, width=800, height=319, bg="gray95")
+        self.canvas = tk.Canvas(master, width=870, height=319, bg="gray95")
         self.canvas.pack()
         
         #Mit Pillow
@@ -35,6 +35,15 @@ class LEDMockGUI:
             fill="gray50", font=("Arial", 12, "normal")
         )
         
+        # --- NEU: Mute-Button Setup ---
+        self.is_muted = tk.BooleanVar(value=False) # Speichert den aktuellen Status
+        
+        # Text unten rechts platzieren (x=750, y=300)
+        self.mute_text = self.canvas.create_text(
+            830, 300, text="Sound On", 
+            fill="gray50", font=("Arial", 10, "bold")
+        )
+        
         # --- DER MAGISCHE TRACE ---
         # "write" bedeutet: Sobald sich der Wert der Variable ändert, rufe die Funktion auf
         self.name_vars[0].trace_add("write", lambda *args: self._update_names())
@@ -45,6 +54,7 @@ class LEDMockGUI:
         # Texte klickbar machen
         self.canvas.tag_bind(self.text_p1, "<Button-1>", lambda e: self._update_fokus(0))
         self.canvas.tag_bind(self.text_p2, "<Button-1>", lambda e: self._update_fokus(1))
+        self.canvas.tag_bind(self.mute_text, "<Button-1>", lambda e: self._toggle_mute())
         
         self._update_fokus(0)
         self._update_gegner_modus()  # <--- Prüft beim Start sofort, welcher Modus aktiv ist
@@ -98,6 +108,18 @@ class LEDMockGUI:
             self.canvas.itemconfig(self.text_p1, fill="gray80", font=("Arial", 11, "normal"))
             self.canvas.itemconfig(self.text_p2, fill="coral", font=("Arial", 13, "bold", "underline"))
 
+    # --- NEUE FUNKTION FÜR DEN MUTE-BUTTON ---
+    def _toggle_mute(self):
+        """Schaltet die Mock-Geräusche an oder aus."""
+        aktuell = self.is_muted.get()
+        self.is_muted.set(not aktuell)
+        
+        if self.is_muted.get():
+            # Wenn gemutet: Zeige rotes, durchgestrichenes Icon
+            self.canvas.itemconfig(self.mute_text, text="Muted", fill="coral")#🔇🔊
+        else:
+            # Wenn Sound an: Zeige normales Icon
+            self.canvas.itemconfig(self.mute_text, text="Sound On", fill="gray50")
 
     def _draw_led(self, x, y):
         outer = self.canvas.create_oval(x-22, y-22, x+22, y+22, fill="black", outline="white", width=2)
@@ -208,15 +230,17 @@ def init_mock_hardware_gui(pytaster):
     # --- NEU: Callback für Treffer-Visualisierung ---
     def hit_callback(button_id, player_id):
         mock_root.gui.show_hit(button_id, player_id)
+        
+        # --- NEU: Stummschaltung prüfen ---
+        if mock_root.gui.is_muted.get():
+            return  # Bricht hier ab, keine Mock-Sounds werden abgespielt!
+        
         # 1. FEHLSCHUSS (Das glorreiche Zonk)
-        #print(f"hit_callback {player_id}")
         if player_id is None:
             pytaster.KSobjekt.SDeluebs.audio.sound_shoot.play()
-            # Optional: mock_root.gui.show_miss(button_id) für z.B. ein graues X
             return # Hier brechen wir ab, da kein Stern gezeichnet werden muss
         
         # 3. SOUND-FOKUS (Aktiver vs. Passiver Spieler)
-        # 'mock_root.gui.fokus_player' ist die Variable, die wir per Klick im UI umschalten
         if player_id == mock_root.gui.fokus_player:
             pytaster.KSobjekt.SDeluebs.audio.sound_shoot_active.play()
         else:
