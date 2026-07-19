@@ -67,7 +67,7 @@ class HighscoreDeluebs:
     
         # Anzahl-Anzeige
         block = tk.Frame(top_frame)
-        block.pack(side="right", padx=(5, 65))
+        block.pack(side="right", padx=(5, 25))
         label_text_eintraege = tk.Label(block, text=" Anzahl Einträge ", font=('Arial', 17), bg="thistle")
         label_text_eintraege.pack(side=tk.TOP)
         label_anzahl_eintraege = tk.Label(block, textvariable=self.anzahl_eintraege, font=('Arial', 17))
@@ -481,7 +481,7 @@ class HighscoreDeluebs:
         top = self.tree.winfo_toplevel()
         dialog = tk.Toplevel(top)
         dialog.title("YAML Export-Optionen")
-        dialog.geometry("350x200")
+        dialog.geometry("350x350")
         dialog.transient(top)
         dialog.grab_set()
 
@@ -489,14 +489,28 @@ class HighscoreDeluebs:
         var_p1 = tk.BooleanVar(value=True)
         var_p2 = tk.BooleanVar(value=True)
         var_comp = tk.BooleanVar(value=True)
+        challenger_var = tk.StringVar(value="") # Variable für den Herausforder
 
         # UI Layout
         tk.Label(dialog, text="Wer soll im Replay schießen?", font=("Arial", 10, "bold")).pack(pady=(10, 5))
         tk.Checkbutton(dialog, text="Spieler 1 (p=0) exportieren", variable=var_p1).pack(anchor="w", padx=40)
         tk.Checkbutton(dialog, text="Spieler 2 (p=1) exportieren", variable=var_p2).pack(anchor="w", padx=40)
 
+        tk.Label(dialog, text="Name des Herausforderers:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
+        tk.Entry(dialog, textvariable=challenger_var, width=30).pack(pady=5)    
+
         tk.Label(dialog, text="Zeiteinstellungen:", font=("Arial", 10, "bold")).pack(pady=(15, 5))
         tk.Checkbutton(dialog, text="Ladezeit stauchen (Normaler Export)", variable=var_comp).pack(anchor="w", padx=40)
+
+        # --- NEU: ELA OBS & Highscore Optionen ---
+        var_tag = tk.BooleanVar(value=True)
+        #var_save = tk.BooleanVar(value=False) # Standardmäßig aus, um Duplikate zu vermeiden
+
+        #tk.Label(dialog, text="OBS & Speicher-Optionen:", font=("Arial", 10, "bold")).pack(pady=(15, 5))
+        tk.Label(dialog, text="Rec-Tag:", font=("Arial", 10, "bold")).pack(pady=(15, 5))
+        tk.Checkbutton(dialog, text='Sichtbaren "Rec"-Tag im Namen anzeigen', variable=var_tag).pack(anchor="w", padx=40)
+        #tk.Checkbutton(dialog, text='Match am Ende in Highscore speichern', variable=var_save).pack(anchor="w", padx=40)
+
 
         # Speicher für das Ergebnis
         export_optionen = {}
@@ -505,6 +519,9 @@ class HighscoreDeluebs:
             export_optionen["p1_aktiv"] = var_p1.get()
             export_optionen["p2_aktiv"] = var_p2.get()
             export_optionen["stauchung"] = var_comp.get()
+            export_optionen["show_tag"] = var_tag.get()     # <-- NEU
+            #export_optionen["save_score"] = var_save.get()  # <-- NEU
+            export_optionen["challenger_name"] = challenger_var.get() # Wert speichern
             dialog.destroy()
 
         def on_cancel():
@@ -636,12 +653,23 @@ class HighscoreDeluebs:
                                     yaml_lines.append("")
 
                                     # Replay Nummer setzen
-                                    replay_id_str = f"Rec\u200A{match_id}"
-                                    yaml_lines.append(f"  - name: \"Replay-ID setzen ({replay_id_str})\"")
-                                    yaml_lines.append(f"    action: \"call_sm_method\"")
-                                    yaml_lines.append(f"    wert: [\"set_replay_match\", \"{replay_id_str}\"]")
-                                    yaml_lines.append(f"    step_time: 250")
-                                    yaml_lines.append("")          
+                                    # --- NEU: Tag nur setzen, wenn im GUI gewünscht ---
+                                    if export_optionen["show_tag"]:
+                                        replay_id_str = f"Rec\u200A{match_id}"
+                                        yaml_lines.append(f"  - name: \"Replay-ID setzen ({replay_id_str})\"")
+                                        yaml_lines.append(f"    action: \"call_sm_method\"")
+                                        yaml_lines.append(f"    wert: [\"set_replay_match\", \"{replay_id_str}\"]")
+                                        yaml_lines.append(f"    step_time: 250")
+                                        yaml_lines.append("")      
+
+                                    ## --- NEU: Highscore-Speicherung erzwingen ---
+                                    #save_val = 1 if export_optionen["save_score"] else 0
+                                    #yaml_lines.append(f"  - name: \"Highscore-Speicherung erzwingen ({save_val})\"")
+                                    #yaml_lines.append(f"    action: \"set_sm_attr\"")
+                                    #yaml_lines.append(f"    wert: [\"saveScore\", {save_val}]")
+                                    #yaml_lines.append(f"    step_time: 10")
+                                    #yaml_lines.append("")
+                                        
 
                                     # --- DIE ALLGEMEINE SCHLEIFE FÜR ALLE PARAMETER ---
                                     sync_params = {
@@ -653,7 +681,18 @@ class HighscoreDeluebs:
                                         "ladenGelb": "Lade-Zeit Gelb (inkl. Speedup)",
                                         "wiederholungen": "Wiederholungen"
                                     }
-
+                                    if not export_optionen["p2_aktiv"]:
+                                        clean_name = metadata['spieler'].split(" (Ghost")[0].strip()
+                                        metadata["spieler"] = f"{clean_name} (Ghost-{match_id})"
+                                        if export_optionen["challenger_name"].strip(): 
+                                            metadata["spieler2"] = export_optionen["challenger_name"]
+                                            
+                                    if not export_optionen["p1_aktiv"]:
+                                        clean_name = metadata['spieler2'].split(" (Ghost")[0].strip()
+                                        metadata["spieler2"] = f"{clean_name} (Ghost-{match_id})"
+                                        if export_optionen["challenger_name"].strip(): 
+                                            metadata["spieler"] = export_optionen["challenger_name"]
+                                    
                                     for key, label in sync_params.items():
                                         wert = metadata.get(key)
                                         if wert is not None:
@@ -999,147 +1038,127 @@ class HighscoreDeluebs:
                             
                             timeline = daten.get("timeline", daten) if isinstance(daten, dict) else daten
                             
-                            timing, sequence_pov, sequence_gegner = [], [], []
-                            gold_l, gold_b, blau_l, blau_b = [], [], [], []
-                            
-                            ACTION_STATES = ["FEUER", "PLAYER1", "PLAYER2", "END", "WINNER"]
-                            
-                            phase = "IDLE"  # Kann sein: "IDLE", "ACTION", "GRACE"
-                            
-                            last_orig_t = 0.0
+                            # ==========================================
+                            # --- FIX: FUNKTION NACH OBEN VERSCHOBEN ---
+                            # ==========================================
+                            def process_colors(leds, mode, current_owner):
+                                if mode == 0: return [], leds, current_owner       
+                                if mode == 1: return leds, [], current_owner       
+                                
+                                g_out, b_out = [], []
+                                g_count = sum(1 for x in leds if x in [0, 1])
+                                b_count = sum(1 for x in leds if x in [3, 4])
+                                
+                                new_owner = current_owner
+                                
+                                for x in leds:
+                                    if x in [0, 1]: 
+                                        g_out.append(x)
+                                    elif x in [3, 4]: 
+                                        b_out.append(x)
+                                    elif x == 2:
+                                        if new_owner is None:
+                                            if g_count > b_count: 
+                                                new_owner = "GOLD"
+                                            else: 
+                                                new_owner = "BLAU" 
+                                        
+                                        if new_owner == "GOLD":
+                                            g_out.append(x)
+                                        else:
+                                            b_out.append(x) 
+                                
+                                if 2 not in leds:
+                                    new_owner = None
+                                    
+                                return g_out, b_out, new_owner
+
+                            # ==========================================
+                            # --- DIE NEUE "ELA" TIME-WARP ENGINE ---
+                            # ==========================================
                             t_video = 0.0
-                            last_down_t_video = 0.0
-                            first_up_done = False
-                            grace_timer = 0.0
+                            last_orig_t = 0.0
+                            state_time_accumulated = 0.0
+                            current_state = "IDLE" 
                             
-                            last_L = []
-                            last_B = []
+                            # 1. Initiale Startposition (Waffe unten)
+                            timing = [0.0]
+                            sequence_pov = ["DOWN"]
+                            sequence_gegner = ["DOWN"]
+                            gold_l, blau_l, gold_b, blau_b = [[]], [[]], [[]], [[]]
+                            
                             owner_of_2 = None
-                            
+
                             for ev in timeline:
                                 action = ev.get("a", "")
-                                m = ev.get("m", "")
+                                m = ev.get("m", current_state)
                                 t_orig = ev.get("t", 0.0)
                                 
+                                # --- ZEIT BERECHNEN ---
                                 delta_orig = max(0, t_orig - last_orig_t)
-                                last_orig_t = t_orig
                                 
-                                # 1. ZEIT-MANAGEMENT & GRACE-TIMER
-                                if phase == "GRACE":
-                                    if delta_orig >= grace_timer:
-                                        t_video += grace_timer
-                                        phase = "IDLE"
-                                        last_down_t_video = t_video
-                                        
-                                        timing.append(round(t_video, 2))
-                                        sequence_pov.append("DOWN")
-                                        sequence_gegner.append("DOWN") # <-- NEU: Gegner senkt die Waffe!
-                                        
-                                        gold_l.append(last_L if color_map_L == 0 else [])
-                                        blau_l.append(last_L if color_map_L == 1 else [])
-                                        gold_b.append(last_B if color_map_B == 0 else [])
-                                        blau_b.append(last_B if color_map_B == 1 else [])
-                                    else:
-                                        t_video += delta_orig
-                                        grace_timer -= delta_orig
-                                        
-                                elif phase == "ACTION":
+                                # ELA-Regel 1: Wichtige Phasen laufen 1:1 in Echtzeit
+                                if current_state in ["ACHTUNG", "FEUER", "PLAYER1", "PLAYER2", "SURVIVAL"]:
                                     t_video += delta_orig
                                     
-                                last_L = ev.get("L", [])
-                                last_B = ev.get("B", [])
-                                
-                                frame_hinzugefuegt = False
-                                
-                                # 2. STATUS WECHSEL
-                                if action == "state_change":
-                                    if m in ACTION_STATES:
-                                        if phase in ["IDLE", "GRACE"]:
-                                            if phase == "GRACE":
-                                                phase = "ACTION"
-                                            elif phase == "IDLE":
-                                                phase = "ACTION"
-                                                if not first_up_done:
-                                                    t_video = 0.0
-                                                    first_up_done = True
-                                                else:
-                                                    t_video = last_down_t_video + 3.0
-                                                
-                                                timing.append(round(t_video, 2))
-                                                sequence_pov.append("UP")       
-                                                sequence_gegner.append("UP") # <-- NEU: Gegner hebt die Waffe!
-                                                frame_hinzugefuegt = True
-                                                
-                                    elif m not in ACTION_STATES:
-                                        if phase == "ACTION":
-                                            phase = "GRACE"
-                                            grace_timer = 1.5
-
-                                # 3. SCHÜSSE
-                                elif action == "shoot" and phase in ["ACTION", "GRACE"]:
-                                    timing.append(round(t_video, 2))
+                                # ELA-Regel 2: Unwichtige Phasen (Laden, Pause) werden auf 3.0 Sekunden limitiert
+                                else:
+                                    # Erlaubt maximal 3 Sekunden Fortschritt pro "unwichtiger" Phase
+                                    add_time = min(delta_orig, max(0, 3.0 - state_time_accumulated))
+                                    t_video += add_time
                                     
+                                state_time_accumulated += delta_orig
+                                last_orig_t = t_orig
+                                
+                                # --- EVENT VERARBEITEN ---
+                                is_waypoint = False
+                                val_pov = -1
+                                val_gegner = -1
+                                
+                                if action == "state_change":
+                                    current_state = m
+                                    state_time_accumulated = 0.0
+                                    
+                                    if m == "ACHTUNG":
+                                        # Der Magnet: Die Lichter gehen aus, die Waffe geht hoch!
+                                        val_pov = "DOWN"
+                                        val_gegner = "DOWN"
+                                        is_waypoint = True
+                                        
+                                    elif m in ["LADEN", "RESET", "END", "WINNER"]:
+                                        # Runde vorbei: Die Waffe geht runter
+                                        val_pov = "DOWN"
+                                        val_gegner = "DOWN"
+                                        is_waypoint = True
+                                        
+                                    elif m == "FEUER":
+                                        # Startschuss: Lichter gehen an, Waffe reißt jetzt erst hoch!
+                                        val_pov = "UP"
+                                        val_gegner = "UP"
+                                        is_waypoint = True
+                                        
+                                elif action == "shoot":
                                     shooter_idx = ev.get("p", -1)
                                     target = ev.get("v", -1)
-                                    
                                     if target != -1:
                                         if shooter_idx == pov_player_idx:
-                                            sequence_pov.append(target)
-                                            sequence_gegner.append(-1)
+                                            val_pov = target
+                                            val_gegner = -1
                                         else:
-                                            sequence_pov.append(-1)
-                                            sequence_gegner.append(target)
-                                    else:
-                                        sequence_pov.append(-1) 
-                                        sequence_gegner.append(-1)
-                                        
-                                    frame_hinzugefuegt = True
+                                            val_pov = -1
+                                            val_gegner = target
+                                    is_waypoint = True
                                     
-                                    if phase == "GRACE":
-                                        grace_timer = 1.5
-                                
-                                # 4. FARBEN SPEICHERN
-                                if frame_hinzugefuegt:
+                                # --- WAYPOINT & FARBEN EINTRAGEN ---
+                                if is_waypoint:
+                                    timing.append(round(t_video, 2))
+                                    sequence_pov.append(val_pov)
+                                    sequence_gegner.append(val_gegner)
+                                    
+                                    # Farben für genau DIESEN Moment auslesen
                                     L_list = ev.get("L", [])
                                     B_list = ev.get("B", [])
                                     
-                                    # --- NEU: Funktion übergibt und speichert den Besitzer ---
-                                    def process_colors(leds, mode, current_owner):
-                                        if mode == 0: return [], leds, current_owner       
-                                        if mode == 1: return leds, [], current_owner       
-                                        
-                                        g_out, b_out = [], []
-                                        g_count = sum(1 for x in leds if x in [0, 1])
-                                        b_count = sum(1 for x in leds if x in [3, 4])
-                                        
-                                        new_owner = current_owner
-                                        
-                                        for x in leds:
-                                            if x in [0, 1]: 
-                                                g_out.append(x)
-                                            elif x in [3, 4]: 
-                                                b_out.append(x)
-                                            elif x == 2:
-                                                # Hat das Ziel noch keinen Besitzer? Dann JETZT anhand Mehrheit ermitteln!
-                                                if new_owner is None:
-                                                    if g_count > b_count: 
-                                                        new_owner = "GOLD"
-                                                    else: 
-                                                        new_owner = "BLAU" # (Blau gewinnt nur, wenn es wirklich Gleichstand zur Eroberungszeit gibt)
-                                                        
-                                                # Ziel anhand des festen Besitzers zuweisen
-                                                if new_owner == "GOLD":
-                                                    g_out.append(x)
-                                                else:
-                                                    b_out.append(x) 
-                                                    
-                                        # Wenn Ziel 2 ausgegangen ist (z.B. neues Match/Reset), Besitzer löschen!
-                                        if 2 not in leds:
-                                            new_owner = None
-                                            
-                                        return g_out, b_out, new_owner
-                                        
-                                    # Farben durch die Maschine jagen und Besitzer aktualisieren
                                     cur_gold_l, cur_blau_l, owner_of_2 = process_colors(L_list, color_map_L, owner_of_2)
                                     cur_gold_b, cur_blau_b, owner_of_2 = process_colors(B_list, color_map_B, owner_of_2)
                                     
@@ -1148,17 +1167,13 @@ class HighscoreDeluebs:
                                     gold_b.append(cur_gold_b)
                                     blau_b.append(cur_blau_b)
                                     
-                            # 5. FINISH
-                            if phase in ["ACTION", "GRACE"]:
-                                t_video += 1.5
-                                timing.append(round(t_video, 2))
-                                sequence_pov.append("DOWN")
-                                sequence_gegner.append("DOWN") # <-- NEU: Gegner senkt die Waffe!
-                                gold_l.append([])
-                                blau_l.append([])
-                                gold_b.append([])
-                                blau_b.append([])
-                                    
+                            # Ganz am Ende noch einmal Waffe runternehmen, falls nicht schon passiert
+                            t_video += 1.5
+                            timing.append(round(t_video, 2))
+                            sequence_pov.append("DOWN")
+                            sequence_gegner.append("DOWN")
+                            gold_l.append([]); blau_l.append([]); gold_b.append([]); blau_b.append([])
+                            
                             video_config = {
                                 "MATCH_ID": match_id,
                                 "POV_SPIELER": entry.get('spieler') if pov_num == 1 else entry.get('spieler2'),
