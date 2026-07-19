@@ -677,7 +677,8 @@ class Klappscheibe:
         }
         
         if value is not None: snapshot["v"] = value
-        if player_idx is not None: snapshot["p"] = player_idx
+        #if player_idx is not None: snapshot["p"] = player_idx
+        snapshot["p"] = player_idx if player_idx is not None else -1 #Immer "p" mit ausgeben!
         
         # Spieler-Stats hinzufügen (kurze Keys für JSON-Sparen)
         for i, p in enumerate(self.players):

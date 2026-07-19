@@ -575,19 +575,22 @@ class HighscoreDeluebs:
                                     # --- NEU: PRE-FLIGHT CHECK (Integrität der Schüsse) ---
                                     # =================================================================
                                     match_ist_kompatibel = True
-                                    for ev in timeline:
-                                        if ev.get("a") == "shoot":
-                                            if "p" not in ev:
-                                                match_ist_kompatibel = False
-                                                break # Sobald ein fehlerhafter Schuss gefunden wird, direkt abbrechen
-                                                
+                                    
+                                    # Der Check ist NUR nötig, wenn wir Schüsse filtern müssen (ein Spieler ist inaktiv)
+                                    if not export_optionen["p1_aktiv"] or not export_optionen["p2_aktiv"]:
+                                        for ev in timeline:
+                                            if ev.get("a") == "shoot":
+                                                if "p" not in ev:
+                                                    match_ist_kompatibel = False
+                                                    break # Sobald ein fehlerhafter Schuss gefunden wird, direkt abbrechen
+                                                    
                                     if not match_ist_kompatibel:
                                         from tkinter import messagebox
                                         messagebox.showinfo(
                                             "Match inkompatibel", 
-                                            f"Das Match {match_id} kann nicht exportiert werden.\n\n"
+                                            f"Das Match {match_id} kann nicht teil-exportiert werden.\n\n"
                                             "In den Aufzeichnungen fehlt bei mindestens einem Schuss die Zuordnung zum Schützen (Player-ID 'p').\n\n"
-                                            "Dies betrifft meist ältere Matches oder fehlerhafte Log-Dateien."
+                                            "Ein vollständiger Export (beide Spieler aktiv) ist mit diesem Match jedoch möglich!"
                                         )
                                         continue # Bricht dieses Match ab und geht zum nächsten in der for-Schleife
                                     # =================================================================
@@ -761,7 +764,7 @@ class HighscoreDeluebs:
                                         # --- GUI-STEUERUNG FÜR DIE SPIELER ---
                                         # Wir filtern die unerwünschten Schüsse heraus, BEVOR sie verarbeitet werden.
                                         if action_type == "shoot":
-                                            p_idx = ev.get('p', 0)
+                                            p_idx = ev.get('p', -1)
                                             if (p_idx == 0 and not export_optionen["p1_aktiv"]) or (p_idx == 1 and not export_optionen["p2_aktiv"]):
                                                 # Trick: Wir benennen das Event um. Dadurch fängt es unten dein "else" Block auf!
                                                 action_type = "übersprungen"
@@ -1159,16 +1162,20 @@ class HighscoreDeluebs:
                                         val_gegner = "UP"
                                         is_waypoint = True
                                         
-                                elif action == "shoot":
+                                elif action_type == "shoot":
                                     shooter_idx = ev.get("p", -1)
                                     target = ev.get("v", -1)
                                     if target != -1:
                                         if shooter_idx == pov_player_idx:
                                             val_pov = target
                                             val_gegner = -1
-                                        else:
+                                        elif shooter_idx != -1: # <-- NEU: Prüfen, ob es wirklich der Gegner war!
                                             val_pov = -1
                                             val_gegner = target
+                                        else:
+                                            # NEU: Neutraler Schuss (-1). Niemand verzieht die Waffe!
+                                            val_pov = -1
+                                            val_gegner = -1
                                     is_waypoint = True
                                     
                                 # --- WAYPOINT & FARBEN EINTRAGEN ---
