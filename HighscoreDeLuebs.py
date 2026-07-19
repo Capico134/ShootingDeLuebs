@@ -570,6 +570,28 @@ class HighscoreDeluebs:
                                     
                                     # Ab hier können wir uns zu 100% darauf verlassen, dass das Format neu und sauber ist
                                     timeline = geladene_daten.get("timeline", [])
+                                    
+                                    # =================================================================
+                                    # --- NEU: PRE-FLIGHT CHECK (Integrität der Schüsse) ---
+                                    # =================================================================
+                                    match_ist_kompatibel = True
+                                    for ev in timeline:
+                                        if ev.get("a") == "shoot":
+                                            if "p" not in ev:
+                                                match_ist_kompatibel = False
+                                                break # Sobald ein fehlerhafter Schuss gefunden wird, direkt abbrechen
+                                                
+                                    if not match_ist_kompatibel:
+                                        from tkinter import messagebox
+                                        messagebox.showinfo(
+                                            "Match inkompatibel", 
+                                            f"Das Match {match_id} kann nicht exportiert werden.\n\n"
+                                            "In den Aufzeichnungen fehlt bei mindestens einem Schuss die Zuordnung zum Schützen (Player-ID 'p').\n\n"
+                                            "Dies betrifft meist ältere Matches oder fehlerhafte Log-Dateien."
+                                        )
+                                        continue # Bricht dieses Match ab und geht zum nächsten in der for-Schleife
+                                    # =================================================================
+
                                     yaml_lines = ["scenario:"]
                                     
                                     # =================================================================
