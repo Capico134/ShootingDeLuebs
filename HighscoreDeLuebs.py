@@ -572,28 +572,43 @@ class HighscoreDeluebs:
                                     timeline = geladene_daten.get("timeline", [])
                                     
                                     # =================================================================
-                                    # --- NEU: PRE-FLIGHT CHECK (Integrität der Schüsse) ---
+                                    # --- NEU: PRE-FLIGHT CHECK & DNA-EXTRAKTION ---
                                     # =================================================================
                                     match_ist_kompatibel = True
+                                    zufall_dna = {} # Speichert den WAHREN Startwert für jeden Zyklus
                                     
-                                    # Der Check ist NUR nötig, wenn wir Schüsse filtern müssen (ein Spieler ist inaktiv)
-                                    if not export_optionen["p1_aktiv"] or not export_optionen["p2_aktiv"]:
-                                        for ev in timeline:
-                                            if ev.get("a") == "shoot":
-                                                if "p" not in ev:
-                                                    match_ist_kompatibel = False
-                                                    break # Sobald ein fehlerhafter Schuss gefunden wird, direkt abbrechen
-                                                    
+                                    for ev in timeline:
+                                        z_val = max(0, ev.get('z', -1))
+                                        a_val = ev.get('a', '')
+                                        m_val = ev.get('m', '')
+                                        
+                                        # --- DNA EXTRAKTION ---
+                                        if m_val == "FEUER":
+                                            # 1. Wir speichern den ersten Wurf...
+                                            if a_val == "state_change" and z_val not in zufall_dna:
+                                                zufall_dna[z_val] = ev.get('w', [])
+                                                zufall_dna[f"{z_val}_locked"] = False
+                                            
+                                            # 2. ÜBERSCHREIBEN: Die ERSTE Geister-Korrektur fängt den echten Zufall ein!
+                                            elif str(a_val).startswith("Rec:") and not zufall_dna.get(f"{z_val}_locked", True):
+                                                zufall_dna[z_val] = ev.get('w', [])
+                                                zufall_dna[f"{z_val}_locked"] = True # Danach sperren, damit spätere Recs im Zyklus ignoriert werden
+                                        
+                                        # --- SCHÜTZEN CHECK (wie bisher) ---
+                                        if not export_optionen["p1_aktiv"] or not export_optionen["p2_aktiv"]:
+                                            if a_val == "shoot" and "p" not in ev:
+                                                match_ist_kompatibel = False
+                                                
                                     if not match_ist_kompatibel:
                                         from tkinter import messagebox
                                         messagebox.showinfo(
                                             "Match inkompatibel", 
                                             f"Das Match {match_id} kann nicht teil-exportiert werden.\n\n"
-                                            "In den Aufzeichnungen fehlt bei mindestens einem Schuss die Zuordnung zum Schützen (Player-ID 'p').\n\n"
-                                            "Ein vollständiger Export (beide Spieler aktiv) ist mit diesem Match jedoch möglich!"
+                                            "In den Aufzeichnungen fehlt bei mindestens einem Schuss die Zuordnung zum Schützen (Player-ID 'p')."
                                         )
                                         continue # Bricht dieses Match ab und geht zum nächsten in der for-Schleife
-                                    # =================================================================
+                                    # ================================================================= 
+
 
                                     yaml_lines = ["scenario:"]
                                     
@@ -754,6 +769,9 @@ class HighscoreDeluebs:
                                     
                                     lg_safe = max(1, lg)
                                     jaeger_initialisiert = False
+                                    
+                                    # --- NEU: STATE-TRACKER GEGEN DUPLIKATE ---
+                                    current_w = [] 
 
                                     for ev in timeline:
                                         action_type = ev.get('a', '')
@@ -762,12 +780,12 @@ class HighscoreDeluebs:
                                         m = ev.get('m', '')
                                         
                                         # --- GUI-STEUERUNG FÜR DIE SPIELER ---
-                                        # Wir filtern die unerwünschten Schüsse heraus, BEVOR sie verarbeitet werden.
+                                        # Statt "uebersprungen" markieren wir den Schuss einfach als "ignoriert"
+                                        is_ignored_shoot = False
                                         if action_type == "shoot":
                                             p_idx = ev.get('p', -1)
                                             if (p_idx == 0 and not export_optionen["p1_aktiv"]) or (p_idx == 1 and not export_optionen["p2_aktiv"]):
-                                                # Trick: Wir benennen das Event um. Dadurch fängt es unten dein "else" Block auf!
-                                                action_type = "übersprungen"
+                                                is_ignored_shoot = True
                                         
                                         # --- Start-Aufstellung setzen und dann die Engine machen lassen ---
                                         if not jaeger_initialisiert:
@@ -815,8 +833,13 @@ class HighscoreDeluebs:
                                         elif current_state == "LADEN":
                                             phase_t_orig_ms += delta_orig_ms
                                         
+                                        
+                                        # =========================================================
+                                        # --- DIE AUFGERÄUMTE ELA-SCHLEIFE FÜR EVENTS ---
+                                        # =========================================================
+                                        
                                         if action_type in ["state_change", "feuer_start", "zyklus_start"]:
-                                            # --- DER FIX: Survival-Sync NACH dem Zyklus erzwingen ---
+                                            # --- Survival-Sync ---
                                             if pending_survival_feuer is not None:
                                                 yaml_lines.append(f"  - name: \"Survival-Sync: Feuerzeit ueberschreiben ({pending_survival_feuer}s)\"")
                                                 yaml_lines.append(f"    action: \"set_sm_attr\"")
@@ -825,23 +848,28 @@ class HighscoreDeluebs:
                                                 yaml_lines.append("")
                                                 pending_survival_feuer = None
                                                 time_debt_ms += 10
-                                            # --------------------------------------------------------
+                                            # ---------------------
                                             accumulated_delay_ms += delta_new_ms
                                             current_state = m
                                             phase_t_orig_ms = 0 
                                             
                                             if m == "FEUER":
-                                                w_init = ev.get('w', [])
+                                                # Wir nutzen die DNA, die wir oben im Pre-Flight Check extrahiert haben!
+                                                w_init = zufall_dna.get(z, ev.get('w', [])) 
+                                                
                                                 if w_init and (is_kaenguru or is_zufall):
-                                                    yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
-                                                    yaml_lines.append(f"    action: \"set_ziel_wahl\"")
-                                                    yaml_lines.append(f"    wert: [{w_init}]") 
-                                                    yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
-                                                    yaml_lines.append("")
-                                                    accumulated_delay_ms = 0 
-                                                    time_debt_ms += 50
+                                                    if w_init != current_w: # <-- DER DOPPEL-SCHUTZ!
+                                                        yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
+                                                        yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                        yaml_lines.append(f"    wert: [{w_init}]") 
+                                                        yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
+                                                        yaml_lines.append("")
+                                                        accumulated_delay_ms = 0 
+                                                        time_debt_ms += 50
+                                                        current_w = w_init # State aktualisieren
                                                     
-                                        elif action_type in ["shoot", "anulliere_zyklus"]:
+                                        elif action_type == "shoot" and not is_ignored_shoot:
+                                            # 1. ECHTER SCHUSS DES AKTIVEN SPIELERS
                                             delta_new_ms = delta_new_ms + accumulated_delay_ms
                                             accumulated_delay_ms = 0 
                                             delta_new_ms = max(50, delta_new_ms)
@@ -851,34 +879,85 @@ class HighscoreDeluebs:
                                                 delta_new_ms -= abbau_debt         
                                                 time_debt_ms -= abbau_debt 
 
-                                            if action_type == "shoot":
-                                                wert = ev.get('v', 0)
-                                                yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
-                                                yaml_lines.append(f"    action: \"shoot\"")
-                                                yaml_lines.append(f"    wert: {wert}")
-                                                yaml_lines.append(f"    step_time: {delta_new_ms}")
-                                                yaml_lines.append("")
-                                                
-                                                w_historisch = ev.get('w', [])
-                                                if w_historisch and is_kaenguru:
+                                            wert = ev.get('v', 0)
+                                            yaml_lines.append(f"  - name: \"Schuss auf {wert} (Zyklus {z})\"")
+                                            yaml_lines.append(f"    action: \"shoot\"")
+                                            yaml_lines.append(f"    wert: {wert}")
+                                            yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                            yaml_lines.append("")
+                                            
+                                            w_historisch = ev.get('w', [])
+                                            if w_historisch and (is_kaenguru or is_zufall):
+                                                if w_historisch != current_w: # <-- DOPPEL-SCHUTZ
                                                     yaml_lines.append(f"  - name: \"Zufall-Sync (Känguru Folgeziel)\"")
                                                     yaml_lines.append(f"    action: \"set_ziel_wahl\"")
                                                     yaml_lines.append(f"    wert: [{w_historisch}]")
-                                                    yaml_lines.append(f"    step_time: 0")
+                                                    yaml_lines.append(f"    step_time: 0") # Hängt direkt am Schuss
                                                     yaml_lines.append("")
+                                                    current_w = w_historisch
                                                     
-                                            elif action_type == "anulliere_zyklus":
-                                                p_idx = ev.get('p', 0)
-                                                yaml_lines.append(f"  - name: \"VAR-Eingriff: Annulliere Zyklus für Spieler {p_idx} (Zyklus {z})\"")
-                                                yaml_lines.append(f"    action: \"anulliere_zyklus\"")
-                                                yaml_lines.append(f"    wert: {p_idx}")
-                                                yaml_lines.append(f"    step_time: {delta_new_ms}")
-                                                yaml_lines.append("")
+                                            yaml_lines.append(f"  - name: \"Prüfe Status nach Schuss auf {wert}\"")
+                                            yaml_lines.append(f"    actual_attr: \"get_state\"")
+                                            yaml_lines.append(f"    expected: '{m}'")
+                                            yaml_lines.append(f"    step_time: 10")  
+                                            yaml_lines.append("")
+                                            time_debt_ms += 10
+                                            
+                                        elif is_ignored_shoot or str(action_type).startswith("Rec:"):
+                                            # 2. DIE MEGA-IDEE: GEISTER- & FREMD-SCHÜSSE ALS HINTERGRUND-SYNC!
+                                            w_historisch = ev.get('w', [])
+                                            
+                                            if w_historisch and (is_kaenguru or is_zufall):
+                                                if w_historisch != current_w: # Wenn es ein NEUES Ziel ist...
+                                                    delta_new_ms = delta_new_ms + accumulated_delay_ms
+                                                    accumulated_delay_ms = 0 
+                                                    delta_new_ms = max(50, delta_new_ms)
 
-                                        # =========================================================
-                                        # --- SURVIVAL SYNC FIX (Speichern statt sofort ausführen) ---
-                                        # =========================================================
+                                                    if time_debt_ms > 0:
+                                                        abbau_debt = min(delta_new_ms, time_debt_ms) 
+                                                        delta_new_ms -= abbau_debt         
+                                                        time_debt_ms -= abbau_debt 
+
+                                                    wer = "Geist" if str(action_type).startswith("Rec:") else "Inaktiver Spieler"
+                                                    yaml_lines.append(f"  - name: \"Hintergrund-Sync durch {wer}\"")
+                                                    yaml_lines.append(f"    action: \"set_ziel_wahl\"")
+                                                    yaml_lines.append(f"    wert: [{w_historisch}]")
+                                                    yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                                    yaml_lines.append("")
+                                                    current_w = w_historisch
+                                                else:
+                                                    # Duplikat (z.B. Rec-Event am Zyklus-Start)! Wir verbrauchen nur die Zeit.
+                                                    accumulated_delay_ms += delta_new_ms
+                                            else:
+                                                accumulated_delay_ms += delta_new_ms
+                                                
+                                        elif action_type == "anulliere_zyklus":
+                                            # 3. ZYKLUS ANNULLIEREN
+                                            delta_new_ms = delta_new_ms + accumulated_delay_ms
+                                            accumulated_delay_ms = 0 
+                                            delta_new_ms = max(50, delta_new_ms)
+
+                                            if time_debt_ms > 0:
+                                                abbau_debt = min(delta_new_ms, time_debt_ms) 
+                                                delta_new_ms -= abbau_debt         
+                                                time_debt_ms -= abbau_debt 
+
+                                            p_idx = ev.get('p', 0)
+                                            yaml_lines.append(f"  - name: \"VAR-Eingriff: Annulliere Zyklus für Spieler {p_idx} (Zyklus {z})\"")
+                                            yaml_lines.append(f"    action: \"anulliere_zyklus\"")
+                                            yaml_lines.append(f"    wert: {p_idx}")
+                                            yaml_lines.append(f"    step_time: {delta_new_ms}")
+                                            yaml_lines.append("")
+                                            
+                                            yaml_lines.append(f"  - name: \"Prüfe Status nach VAR-Eingriff\"")
+                                            yaml_lines.append(f"    actual_attr: \"get_state\"")
+                                            yaml_lines.append(f"    expected: '{m}'")
+                                            yaml_lines.append(f"    step_time: 10")  
+                                            yaml_lines.append("")
+                                            time_debt_ms += 10
+
                                         elif action_type == "survival_update":
+                                            # 4. SURVIVAL UPDATE WARTESCHLANGE
                                             val_v = ev.get('v')
                                             if val_v is not None:
                                                 feuer_neu = float(val_v) 
@@ -888,23 +967,11 @@ class HighscoreDeluebs:
                                             
                                             pending_survival_feuer = feuer_neu 
                                             accumulated_delay_ms += delta_new_ms
-                                        # =========================================================
-
-                                            aktion_text = f"Schuss auf {wert}" if action_type == "shoot" else "VAR-Eingriff"
-                                            yaml_lines.append(f"  - name: \"Prüfe Status nach {aktion_text}\"")
-                                            yaml_lines.append(f"    actual_attr: \"get_state\"")
-                                            yaml_lines.append(f"    expected: '{m}'")
-                                            yaml_lines.append(f"    step_time: 10")  
-                                            yaml_lines.append("")
-                                            time_debt_ms += 10
 
                                         else:
-                                            # --- DER BUGFIX ---
-                                            # Unbekannte oder rein textuelle Events (z.B. "Bonus Spieler 1") 
-                                            # ODER übersprungene Schüsse (!) landen hier und sparen ihre Zeit auf.
+                                            # 5. UNBEKANNTE EVENTS (Zeit aufsparen)
                                             accumulated_delay_ms += delta_new_ms
 
-                                        
                                         last_t_orig_ms = t_orig_ms
 
                                     yaml_lines.append(f"  - name: \"GUI schließen\"")
@@ -1162,7 +1229,7 @@ class HighscoreDeluebs:
                                         val_gegner = "UP"
                                         is_waypoint = True
                                         
-                                elif action_type == "shoot":
+                                elif action == "shoot":
                                     shooter_idx = ev.get("p", -1)
                                     target = ev.get("v", -1)
                                     if target != -1:

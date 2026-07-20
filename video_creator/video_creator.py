@@ -25,7 +25,7 @@ except FileNotFoundError:
     BULLET_IMG = Image.new("RGBA", (50, 50), (100, 100, 100, 150))
     print("WARNUNG: Bullet.png nicht gefunden, nutze Dummy-Hole.")
 
-def stamp_bullet_hole(canvas, target_coords, scale=1.0, offset_x=0, offset_y=0, random_r=15, alpha=1.0):
+def stamp_bullet_hole(canvas, target_coords, scale=1.0, offset_x=0, offset_y=0, random_r=15, alpha=1.0, seed_val=None):
     """Stempelt das Bullet.png mit Skalierung, Offsets, Zufall UND Transparenz."""
     if scale != 1.0:
         new_size = (int(BULLET_IMG.size[0] * scale), int(BULLET_IMG.size[1] * scale))
@@ -33,18 +33,22 @@ def stamp_bullet_hole(canvas, target_coords, scale=1.0, offset_x=0, offset_y=0, 
     else:
         bullet = BULLET_IMG.copy()
         
-    # --- NEU: Die Alpha-Magie ---
+    # --- Die Alpha-Magie ---
     if alpha != 1.0:
-        # Wir trennen Rot, Grün, Blau und Alpha
         r, g, b, a = bullet.split()
-        # Wir multiplizieren die Deckkraft mit deinem Wert (z.B. 0.2)
         a = a.point(lambda p: int(p * alpha))
-        # Und verheiraten die Kanäle wieder
         bullet = Image.merge("RGBA", (r, g, b, a))
         
-    # Zufallsabweichung
-    dx = random.uniform(-random_r, random_r)
-    dy = random.uniform(-random_r, random_r)
+    # --- NEU: Die Seed-Magie ---
+    if seed_val is not None:
+        # Erzeugt einen isolierten Generator für diesen einen Aufruf!
+        rng = random.Random(seed_val)
+        dx = rng.uniform(-random_r, random_r)
+        dy = rng.uniform(-random_r, random_r)
+    else:
+        # Fallback auf normalen Zufall, falls kein Seed übergeben wurde
+        dx = random.uniform(-random_r, random_r)
+        dy = random.uniform(-random_r, random_r)
     
     final_x = int(target_coords[0] + dx + offset_x - (bullet.size[0] / 2))
     final_y = int(target_coords[1] + dy + offset_y - (bullet.size[1] / 2))
@@ -583,85 +587,73 @@ def build_video():
     bg_img = Image.open(BG_IMAGE)
     bg_w, bg_h = bg_img.size
 
+    # ==========================================================
+    # --- ELA CACHE: EINSCHUSSLÖCHER VORBERECHNEN ---
+    # Einfach: Jedes Loch wird nur 1x gestempelt.
+    # Lesbar: Stempeln und LED-Blinken sind nun sauber getrennt.
+    # ==========================================================
+    print("Erzeuge Einschussloch-Cache (Pre-Rendering)...")
+    H_SCALE, H_OFF_X, H_OFF_Y, H_RAND_R = 0.18, -13, 25, 12
+    H_ALPHA_MISS, H_ALPHA_HIT = 0.8, 0.5
+    
+    bullet_hole_stages = []
+    current_wall = bg_img.copy()
 
+    # Wir bauen das "Daumenkino" der Wand linear auf
+    for i, wp_time in enumerate(TIMING):
+        val_pov = SEQUENCE_POV[i]
+        val_gegner = SEQUENCE_GEGNER[i]
+        
+        # 1. Spieler-Schuss stempeln
+        if is_shot(val_pov):
+            seed = f"{wp_time}_pov"
+            alpha = H_ALPHA_MISS if val_pov >= 10 else H_ALPHA_HIT
+            stamp_bullet_hole(current_wall, get_target_coords(val_pov), H_SCALE, H_OFF_X, H_OFF_Y, H_RAND_R, alpha=alpha, seed_val=seed)
+            
+        # 2. Gegner-Schuss stempeln
+        if is_shot(val_gegner):
+            seed = f"{wp_time}_gegner"
+            alpha = H_ALPHA_MISS if val_gegner >= 10 else H_ALPHA_HIT
+            stamp_bullet_hole(current_wall, get_target_coords(val_gegner), H_SCALE, H_OFF_X, H_OFF_Y, H_RAND_R, alpha=alpha, seed_val=seed)
+            
+        # Wandzustand NACH diesem Zeit-Wegpunkt speichern
+        bullet_hole_stages.append(current_wall.copy())
+
+    # ==========================================================
+    # --- RENDER-FUNKTION (Nur noch Cache-Abruf + LEDs) ---
+    # ==========================================================
     def make_bg_frame(t):
-        # 1. Frische Kopie vom Hintergrund nehmen
-        img_copy = bg_img.copy()
-        
-        # ==========================================================
-        # NEU: Einschusslöcher stempeln (Die Tweak-Zone!)
-        # ==========================================================
-        H_SCALE = 0.18       # Deine perfekt abgestimmte Größe
-        H_OFF_X = -13        # Manuelle Korrektur X
-        H_OFF_Y = 25         # Manuelle Korrektur Y
-        H_RAND_R = 12        # Maximale Zufallsabweichung in Pixeln
-        
-        H_ALPHA_MISS = 0.8   # Hohe Deckkraft für Fehlschüsse (+10)
-        H_ALPHA_HIT = 0.5    # Sanfte Deckkraft für echte Treffer (0-9)
-        
-        for i, wp_time in enumerate(TIMING):
-            # 1. SPIELER (POV)
-            val_pov = SEQUENCE_POV[i]
-            # is_shot() erkennt jetzt echte Treffer UND Fehlschüsse!
-            if is_shot(val_pov) and wp_time <= t:
-                random.seed(str(wp_time) + "_pov") 
-                base_coords = get_target_coords(val_pov)
-                
-                # Alpha festlegen (Fehlschuss oder Hit?)
-                current_alpha = H_ALPHA_MISS if val_pov >= 10 else H_ALPHA_HIT
-                
-                # Stempeln (mit dem neuen Parameter alpha=current_alpha)
-                stamp_bullet_hole(img_copy, base_coords, H_SCALE, H_OFF_X, H_OFF_Y, H_RAND_R, alpha=current_alpha)
-                
-            # 2. GEGNER (GEIST)
-            val_gegner = SEQUENCE_GEGNER[i]
-            if is_shot(val_gegner) and wp_time <= t:
-                random.seed(str(wp_time) + "_gegner") 
-                base_coords = get_target_coords(val_gegner)
-                
-                current_alpha = H_ALPHA_MISS if val_gegner >= 10 else H_ALPHA_HIT
-                
-                stamp_bullet_hole(img_copy, base_coords, H_SCALE, H_OFF_X, H_OFF_Y, H_RAND_R, alpha=current_alpha)
-        # ==========================================================
-        
-        # Erst JETZT den Draw-Kontext für die LEDs aufrufen, 
-        # damit sie über die Löcher gemalt werden!
-        draw = ImageDraw.Draw(img_copy)
-        
-        # 2. Welchen Index (Zeitabschnitt) haben wir gerade?
-        current_idx = 0
+        # 1. Welchen Index (Zeitabschnitt) haben wir gerade?
+        current_idx = -1
         for i, t_val in enumerate(TIMING):
             if t >= t_val: current_idx = i
             else: break
             
-        # 3. Den Blink-Takt EINMAL für diesen Frame berechnen
-        blink_faktor = (math.sin(t * 15) + 1) / 2
-        ist_an = blink_faktor > 0.5
+        # 2. Fertige Wand aus dem Cache laden (anstatt neu zu stempeln)
+        if current_idx == -1:
+            img_copy = bg_img.copy()
+        else:
+            img_copy = bullet_hole_stages[current_idx].copy()
         
-        # 4. Alle 5 LEDs durchgehen
+        # 3. LEDs in das Bild malen (die müssen immer neu, da sie blinken)
+        draw = ImageDraw.Draw(img_copy)
+        ist_an = ((math.sin(t * 15) + 1) / 2) > 0.5
+        
         for led_idx, target_pos in enumerate(TARGETS):
-            lx = target_pos[0] + 80 + 13 -26
-            ly = target_pos[1] - 80 + 31 -45
+            lx = target_pos[0] + 80 + 13 - 26
+            ly = target_pos[1] - 80 + 31 - 45
             radius = 22
             
-            # --- DIE GENIALE FARB-WEICHE ---
-            # Soll dieses Ziel Gold oder Blau gezeichnet werden?
             draw_gold = (led_idx in GOLD_LEUCHTEND[current_idx]) or (led_idx in GOLD_BLINKEND[current_idx] and ist_an)
             draw_blau = (led_idx in BLAU_LEUCHTEND[current_idx]) or (led_idx in BLAU_BLINKEND[current_idx] and ist_an)
 
             if draw_gold:
-                # --- GOLDGELB ---
                 draw.ellipse((lx - radius, ly - radius, lx + radius, ly + radius), fill=(255, 90, 30)) 
-                #draw.ellipse((lx - 25, ly - 25, lx + 25, ly + 25), fill=(255, 130, 100))
                 draw.ellipse((lx - 10, ly - 10, lx + 10, ly + 10), fill=(255, 240, 205))                
-                
             elif draw_blau:
-                # --- BLAU ---
                 draw.ellipse((lx - radius, ly - radius, lx + radius, ly + radius), fill=(80, 150, 255)) 
                 draw.ellipse((lx - 10, ly - 10, lx + 10, ly + 10), fill=(220, 240, 255))
-                
             else:
-                # --- AUS ---
                 draw.ellipse((lx - radius, ly - radius, lx + radius, ly + radius), fill=(30, 30, 40))
                 draw.ellipse((lx - 10, ly - 10, lx + 10, ly + 10), fill=(20, 20, 25))
 

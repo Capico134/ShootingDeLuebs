@@ -729,24 +729,53 @@ class Klappscheibe:
         elif self.SM.zufall.get()==1:                                    Modus = "zufall"        #Zufalls-Modus
         #elif self.SM.jaeger_modus.get()==1:                             Modus = "jaeger"        #Jäger-Modus
         elif self.SM.kaenguru_modus.get()==1:                            Modus = "kaenguru"      #Känguru-Modus
-        #elif self.SM.reihe.get()==1 and  self.SM.gegner_modus.get()==1: Modus = "wechsel"      #Wechsel-Modus
+        #elif self.SM.reihe.get()==1 and  self.SM.gegner_modus.get()==1: Modus = "wechsel"       #Wechsel-Modus
         #elif self.SM.gegner_modus.get()==1:                             Modus = "gegner"       #Gegner-Modus
         #else:                                                           Modus = "treffer"      #Klappscheibe          
+        
         if Modus is not None:
             if (not w_liste) or (not self.SM.get_state().is_action_state()):
                 return  # Nichts tun, wenn keine Ziele definiert sind oder der Treffer nicht während der zulässigen Zeit war
-            # 0. anzahlZiele auslesen
-            anzahlZiele = 1 #Wenn kein sinvoller Wert bei scheibenServo angegeben ist, dann nur 1 Ziel.
-            if self.SM.scheibenServo.get() > 0 and self.SM.scheibenServo.get() < 5: anzahlZiele = self.SM.scheibenServo.get()
-            # 1. Den internen Status der Engine knallhart überschreiben #####################################WORKAROUND!!!!!!!!!!!!!!!!#####################
-            # --- FIX: Matroschka-Schutz ---
-            # Falls die Liste durch das YAML-Parsing verschachtelt ankommt (z.B. [[1, 2]])
+            
+            # ====================================================================
+            # --- NEU: LOKALEN FORTSCHRITT ABFRAGEN (Matroschka & Zombie-Schutz)
+            # ====================================================================
+            max_schuesse = self.SM.scheibenServo.get()
+            p1_fertig = False
+            p2_fertig = False
+            
+            if len(self.players) > 0:
+                w_s1 = self.welcherSchuss(self.players[0].treffer)
+                # Ein Spieler ist fertig, wenn er das Limit erreicht hat oder -1 (ungültig/beendet) zurückkommt
+                if w_s1 >= max_schuesse or w_s1 == -1: 
+                    p1_fertig = True
+                    
+            if len(self.players) > 1:
+                w_s2 = self.welcherSchuss(self.players[1].treffer)
+                if w_s2 >= max_schuesse or w_s2 == -1: 
+                    p2_fertig = True
+            # ====================================================================
+
+            # 1. Den internen Status der Engine überschreiben (mit Schutz gegen historisches Auslöschen!)
             if isinstance(w_liste[0], (list, tuple)):
-                self.ziel_wahl = list(w_liste[0])
+                neue_ziel_wahl = list(w_liste[0])
             else:
-                self.ziel_wahl = list(w_liste)
+                neue_ziel_wahl = list(w_liste)
+
+            # --- ELA FIX: Verhindere, dass eine historische -1 den lokalen Spieler abwürgt! ---
+            if Modus == "kaenguru":
+                # Wenn P1 lokal noch NICHT fertig ist, aber die Historie eine -1 schickt:
+                if not p1_fertig and len(neue_ziel_wahl) > 0 and neue_ziel_wahl[0] == -1:
+                    # Wir behalten einfach das aktuelle, lokale Ziel von P1!
+                    neue_ziel_wahl[0] = self.ziel_wahl[0] if len(self.ziel_wahl) > 0 else -1
+                    
+                # Das Gleiche für P2:
+                if self.SM.gegner_modus.get() == 1 and not p2_fertig and len(neue_ziel_wahl) > 1 and neue_ziel_wahl[1] == -1:
+                    neue_ziel_wahl[1] = self.ziel_wahl[1] if len(self.ziel_wahl) > 1 else -1
+
+            self.ziel_wahl = neue_ziel_wahl
+                
             # 2. SOLL-ZUSTAND BERECHNEN (Verhindert das Timer-Doppelblinken!)
-            # Wir bereiten zwei Schablonen vor, wie die LEDs aussehen sollen.
             soll_led = [False] * 5
             soll_blink = [False] * 5
             
@@ -767,8 +796,11 @@ class Klappscheibe:
                     safe_set(soll_led, wert)
 
             elif Modus == "kaenguru":
-                if len(self.ziel_wahl) > 0: safe_set(soll_led, self.ziel_wahl[0])         
-                if self.SM.gegner_modus.get()==1 and len(self.ziel_wahl) > 1:
+                # --- ELA FIX: Ziele NUR leuchten lassen, wenn der Spieler NICHT fertig ist! ---
+                if len(self.ziel_wahl) > 0 and not p1_fertig: 
+                    safe_set(soll_led, self.ziel_wahl[0])         
+                
+                if self.SM.gegner_modus.get()==1 and len(self.ziel_wahl) > 1 and not p2_fertig:
                     safe_set(soll_blink, self.ziel_wahl[1])   
             
             # 3. SMART UPDATE: Nur schalten, was abweicht!
@@ -781,6 +813,7 @@ class Klappscheibe:
                 if not soll_blink[i]:
                     if self.LED_status[i] != soll_led[i]:
                         self.SetLED(i, soll_led[i])
+                        
             #print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")    
             self.append_event_snapshot(f"Rec:{w_liste}")
          #   print(f"Laufzeit von set_ziel_wahl_replay { time.monotonic() - startzeit}")
