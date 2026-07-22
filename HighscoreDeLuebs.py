@@ -902,8 +902,14 @@ class HighscoreDeluebs:
                                             yaml_lines.append(f"    step_time: 10")  
                                             yaml_lines.append("")
                                             time_debt_ms += 10
-                                            
-                                        elif is_ignored_shoot or str(action_type).startswith("Rec:"):
+                                        
+                                        elif is_ignored_shoot:
+                                            # --- CHALLENGER/INAKTIVER SPIELER IGNORIEREN ---
+                                            # Wir verbrauchen nur noch die verstrichene Zeit, exportieren aber KEINE set_ziel_wahl Befehle mehr für ihn!
+                                            accumulated_delay_ms += delta_new_ms
+                                        
+                                        #elif is_ignored_shoot or str(action_type).startswith("Rec:"):
+                                        elif str(action_type).startswith("Rec:"):
                                             # 2. DIE MEGA-IDEE: GEISTER- & FREMD-SCHÜSSE ALS HINTERGRUND-SYNC!
                                             w_historisch = ev.get('w', [])
                                             
