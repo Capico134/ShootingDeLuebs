@@ -304,26 +304,29 @@ class HighscoreDeluebs:
     def show_selected_highscore_logs(self):
         def clean_l(lst):
             if not lst: return ""
-            return ", ".join([str(x) for x in lst if x != -1])       
+            return ", ".join([str(x) for x in lst if x != -1])
 
         def hole_score_strings(ev_dict):
             b1, b2 = ev_dict.get('p1_pd', 0), ev_dict.get('p2_pd', 0)
             t1, t2 = b1 + ev_dict.get('p1_spd', 0.0), b2 + ev_dict.get('p2_spd', 0.0)
             return f"{b1} Pkte ({t1:.3f})", f"{b2} Pkte ({t2:.3f})"
 
-        # mini_h und sep WURDEN HIER ENTFERNT UND IN DIE SCHLEIFE VERSCHOBEN!
-        
+        # NEUE FUNKTION: Holt sich direkt die 'pz' (Punkte Zyklus) aus dem Event!
+        def hole_cycle_score_strings(ev_dict):
+            z_b1, z_b2 = ev_dict.get('p1_pz', 0), ev_dict.get('p2_pz', 0)
+            z_t1, z_t2 = z_b1 + ev_dict.get('p1_spz', 0.0), z_b2 + ev_dict.get('p2_spz', 0.0)
+            
+            c1_str = f"{z_b1:+} Pkte ({z_t1:+.3f})"
+            c2_str = f"{z_b2:+} Pkte ({z_t2:+.3f})"
+            return c1_str, c2_str
+
         selected_items = self.tree.selection()
         for item in selected_items:
             values = self.tree.item(item, "values")
             for entry in self.highscore_manager.data:
                 if entry["timestamp"] == values[5]:
                     
-                    # --- ELA-UPGRADE: Dynamischer Tabellenkopf mit Spielernamen ---
-                    # Namen auslesen und auf max. 18 Zeichen begrenzen, damit die Tabelle nicht platzt
                     sp1_name = entry.get('spieler', 'Spieler 1')[:18]
-                    
-                    # Bei Singleplayer bleibt die rechte Spalte im Header komplett leer
                     if entry.get("gegner_modus", 0) != 0:
                         sp2_name = entry.get('spieler2', 'Spieler 2')[:18]
                     else:
@@ -332,7 +335,6 @@ class HighscoreDeluebs:
                     mini_h = f"{'Zeit':>8} | {'Ref':^7} | {'Zyk':^4} | {'Aktion':<8} | {'Ziel':^4} | {'Zielwahl':^18} | {sp1_name:^18} | {sp2_name:^18}\n"
                     sep = "-" * (len(mini_h) - 1)
                     last_action_was_state = False
-                    # --------------------------------------------------------------
 
                     log_window = tk.Toplevel()
                     log_window.title(f"Detail-Log: {entry.get('programm_name', 'Unbekannt')}")
@@ -370,23 +372,27 @@ class HighscoreDeluebs:
                                     tref = f"{ev.get('tref', 0):>6.2f}s"
                                     zyk = ev.get('z', 0)
                                 
-                                    # Diese Events verstecken wir im Text-Log # ACHTUNG EIGENTLICH AKTUELL ÜBERFLÜSSIG
                                     if action == "Treffer Wechsel": 
                                         continue
-                                    # ---------------------------------------------
 
                                     if action == "state_change":
-                                        if m == "FEUER":
-                                            if zyk > 1:
-                                                s1_str, s2_str = hole_score_strings(ev)
-                                                event_details += f"{' ':>8} | {' ':>7} | {zyk-1:^4} | {'SCORE':<8} | {' ':^4} | {'ZWISCHENSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
-                                                event_details += "\n" + mini_h + sep + "\n"
-                                            elif zyk == 1:
-                                                event_details += "\n" + mini_h + sep + "\n"
-                                        
+                                        # 1. Den Statuswechsel selbst ausgeben
                                         line = f"{t} | {tref} | {zyk:^4} | {m[:8]:<8} | {' ':^4} | {'(Statuswechsel)':^18} | {' ':^18} | {' ':^18}\n"
                                         event_details += line
                                         last_action_was_state = True
+                                        
+                                        # 2. Wenn der Zyklus durch LADEN oder RESET endet, Punkte loggen!
+                                        if m in ["LADEN", "RESET"] and zyk > 0:
+                                            c1_str, c2_str = hole_cycle_score_strings(ev)
+                                            s1_str, s2_str = hole_score_strings(ev)
+                                            
+                                            event_details += f"{' ':>8} | {' ':>7} | {zyk:^4} | {'ZYKLUS':<8} | {' ':^4} | {'ZYKLUS-PUNKTE':^18} | {c1_str:^18} | {c2_str:^18}\n"
+                                            
+                                            stand_name = "ENDSTAND" if m == "RESET" else "ZWISCHENSTAND"
+                                            event_details += f"{' ':>8} | {' ':>7} | {zyk:^4} | {'SCORE':<8} | {' ':^4} | {stand_name:^18} | {s1_str:^18} | {s2_str:^18}\n"
+                                            
+                                            if m != "RESET":
+                                                event_details += "\n" + mini_h + sep + "\n"
                                 
                                     elif action == "shoot":
                                         v = ev.get('v', '-')
@@ -420,22 +426,15 @@ class HighscoreDeluebs:
                                         last_action_was_state = False
 
                                     elif action == "survival_update":
-                                        # Neue Feuerzeit aus 'v' holen (Fallback auf 'p' für ganz alte Logs)
                                         feuer_neu = ev.get('v', ev.get('p', '-'))
-                                        
-                                        # Verwendete Zeit aus 'p' holen
                                         used_time = ev.get('p', None)
                                         
-                                        # Text formatieren
                                         if used_time is not None and str(used_time) != str(feuer_neu):
-                                            # Reines ASCII '->' verwenden, da Tkinter '➔' breiter darstellt!
                                             detail_text = f"{used_time}s -> {feuer_neu}s"
                                         else:
                                             detail_text = f"Feuerzeit: {feuer_neu}s"
                                             
-                                        # Auf 18 Zeichen begrenzen, damit die Spalte nicht platzt
                                         detail_text = detail_text[:18]
-                                        
                                         line = f"{t} | {tref} | {zyk:^4} | {'SURVIVE':<8} | {' ':^4} | {detail_text:^18} | {' ':^18} | {' ':^18}\n"
                                         event_details += line
                                         last_action_was_state = False
@@ -446,9 +445,8 @@ class HighscoreDeluebs:
                                         event_details += line
                                         last_action_was_state = False 
 
-                                if timeline:
-                                    s1_str, s2_str = hole_score_strings(timeline[-1])
-                                    event_details += f"{sep}\n{' ':>8} | {' ':>7} | {timeline[-1].get('z', 0):^4} | {'SCORE':<8} | {' ':^4} | {'ENDSTAND':^18} | {s1_str:^18} | {s2_str:^18}\n"
+                                # Der Endstand wird nun bereits oben bei m == "RESET" ausgegeben!
+                                # Wir müssen hier ganz am Ende also keinen extra Block mehr anhängen.
                                     
                             except Exception as e:
                                 event_details = f"\n[Fehler beim Laden des Event-Logs: {e}]"
