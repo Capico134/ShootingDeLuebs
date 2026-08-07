@@ -236,8 +236,10 @@ class TestShootingDeLuebsGUI(unittest.TestCase):
         
     def shoot(self, key: int):
         print(f"🎯 Feuer auf die {key}...")
-        self.app.pytaster.handle_button_press(key, True)
-        self.root.after(20, lambda: self.app.pytaster.handle_button_press(key, False))
+        # NEU: Wir übergeben is_robot=True
+        self.app.pytaster.handle_button_press(key, True, is_robot=True)
+        # Auch beim Loslassen geben wir is_robot=True mit (der Vollständigkeit halber)
+        self.root.after(20, lambda: self.app.pytaster.handle_button_press(key, False, is_robot=True))
 
     def anulliere_zyklus(self, player_idx: int):
         """Simuliert den Tastendruck des Schiedsrichters (VAR-Eingriff)."""

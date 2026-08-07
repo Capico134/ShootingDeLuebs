@@ -804,15 +804,29 @@ class Klappscheibe:
                     safe_set(soll_blink, self.ziel_wahl[1])   
             
             # 3. SMART UPDATE: Nur schalten, was abweicht!
+            ziel_geaendert = False  # Triggert den Sound, wenn mindestens eine LED Umschaltet
+            
             for i in range(5):
                 # Blinken abgleichen
                 if self.blinking[i] != soll_blink[i]:
                     self.SetBlinking(i, soll_blink[i])
+                    ziel_geaendert = True
                 
                 # Dauerleuchten abgleichen (aber nur, wenn die LED nicht blinken soll)
                 if not soll_blink[i]:
                     if self.LED_status[i] != soll_led[i]:
                         self.SetLED(i, soll_led[i])
+                        ziel_geaendert = True
+
+            # --------------------------------------------------------------------
+            # --- ELA-AUDIO-UPGRADE: Sound abspielen, wenn der Geist das Ziel bewegt ---
+            # Nur auf echter Hardware (Mock-Attribut fehlt) und nur wenn sich ein Ziel geändert hat
+            if ziel_geaendert and not hasattr(self.LEDs[0], "on_angle_change"):
+                try:
+                    self.SDeluebs.audio.sound_orchestra.play()
+                except AttributeError:
+                    pass  # Falls das Audio-Modul im Testumfeld fehlt
+            # --------------------------------------------------------------------
                         
             #print(f"Ziel-Sequenz erfolgreich gesetzt: {w_liste}")    
             self.append_event_snapshot(f"Rec:{w_liste}")
@@ -873,16 +887,15 @@ class PyGameTaster(threading.Thread):
     def stop(self):
         self._running = False  # 🆕 Methode zum Stoppen des Loops        
 
-    def handle_button_press(self, button_id: int, button_status: bool):
-        #timestamp = time.monotonic()                                                                                    ###################EVENTLOG###################
-        #if button_status==1: self.KSobjekt.event_log.append(f"PRESSED - Button {button_id} Status: {button_status}")    ###################EVENTLOG###################
-        #self.KSobjekt.event_log.append(f"{timestamp} - Button {button_id} Status: {button_status}")                     ###################EVENTLOG###################
-        #print(timestamp)
-        #if button_status:  print(f"button_id: {button_id}; button_status: {button_status}")
+    #def handle_button_press(self, button_id: int, button_status: bool):
+    #    #timestamp = time.monotonic()                                                                                    ###################EVENTLOG###################
+    #    #if button_status==1: self.KSobjekt.event_log.append(f"PRESSED - Button {button_id} Status: {button_status}")    ###################EVENTLOG###################
+    #    #self.KSobjekt.event_log.append(f"{timestamp} - Button {button_id} Status: {button_status}")                     ###################EVENTLOG###################
+    #    #print(timestamp)
+    #    #if button_status:  print(f"button_id: {button_id}; button_status: {button_status}")
 
-        # DEN ALTEN MOCK-HOOK HIER ENTFERNEN! MOCK!!!
-        #if self.on_button_event and button_status == True:
-        #    self.on_button_event(button_id)
+    # NEU: Optionaler Parameter is_robot=False hinzugefügt!
+    def handle_button_press(self, button_id: int, button_status: bool, is_robot: bool = False):
         
         p_id = None
         
@@ -899,6 +912,21 @@ class PyGameTaster(threading.Thread):
             self.buttonlaststate[button_id]=True
             self.buttonlasttime[button_id]=time.monotonic()
             self.KSobjekt.append_event_snapshot("shoot", button_id, p_id) # HIER EVENTLOG ERSTELLEN
+            
+            # ---------------------------------------------------------
+            # --- ELA-AUDIO-UPGRADE: Geister-Sound am Schießstand ---
+            # 1. Kam der Schuss vom ReplayRobot? (is_robot == True)
+            # 2. Sind wir am echten Schießstand? (Mock-Attribut fehlt)
+            if is_robot and not hasattr(self.KSobjekt.LEDs[0], "on_angle_change"):
+                # 1. FEHLSCHUSS (Das glorreiche Zonk)
+                if p_id is None:
+                    self.KSobjekt.SDeluebs.audio.sound_shoot.play()
+                # 3. SOUND-FOKUS (Aktiver vs. Passiver Spieler)
+                elif p_id == 0:
+                    self.KSobjekt.SDeluebs.audio.sound_shoot_active.play()
+                else:
+                    self.KSobjekt.SDeluebs.audio.sound_shoot_passive.play()
+                    
             # --- NEU: Der Mock-Hook ist jetzt hier "geschützt" ---
             if self.on_button_event:
                 self.on_button_event(button_id, p_id)    
