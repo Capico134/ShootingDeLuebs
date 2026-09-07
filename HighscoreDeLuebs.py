@@ -860,7 +860,7 @@ class HighscoreDeluebs:
                                                         yaml_lines.append(f"  - name: \"Zufall-Sync Start Zyklus {z} (Modus: {m})\"")
                                                         yaml_lines.append(f"    action: \"set_ziel_wahl\"")
                                                         yaml_lines.append(f"    wert: [{w_init}]") 
-                                                        yaml_lines.append(f"    step_time: {accumulated_delay_ms+50}")
+                                                        yaml_lines.append(f"    step_time: {accumulated_delay_ms+200}")
                                                         yaml_lines.append("")
                                                         accumulated_delay_ms = 0 
                                                         time_debt_ms += 50
