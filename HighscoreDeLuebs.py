@@ -19,7 +19,17 @@ class HighscoreDeluebs:
         self.anzahl_eintraege = tk.IntVar(value=0)
         
         # --- ELA-Tipp 3: Zentrale Spaltendefinition (Single Source of Truth) ---
-        self.columns = ("ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel")
+        self.columns = ("#", "ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel")
+
+    def _update_row_numbers(self):
+        """Nummeriert alle sichtbaren Reihen (nach Filtern und Sortieren) von 1 bis X durch."""
+        for index, item_id in enumerate(self.tree.get_children('')):
+            # Wir holen die bisherigen Werte der Reihe
+            values = list(self.tree.item(item_id, "values"))
+            if values:
+                # Wir überschreiben einfach den ersten Wert (Index 0, also die # Spalte)
+                values[0] = index + 1
+                self.tree.item(item_id, values=values)
     
     def customize_style(self):
         style = ttk.Style()
@@ -91,11 +101,15 @@ class HighscoreDeluebs:
         
         # Spalten-Headings und Sortierung dynamisch setzen
         for col in self.columns:
-            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_column(_col, True))
+            if col != "#":
+                self.tree.heading(col, text=col, command=lambda _col=col: self.sort_column(_col, True))
+            else:
+                self.tree.heading(col, text=col)
         
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.tree.yview)
         
+        self.tree.column("#", width=60, anchor="center", stretch=False) # Schmalere Breite
         self.tree.column("ID", width=60, anchor="center", stretch=False)
         self.tree.column("Spieler", width=260)
         self.tree.column("Modus", width=400, stretch=True)
@@ -158,6 +172,9 @@ class HighscoreDeluebs:
             self.tree.move(k, '', index)
         # Spaltenüberschrift mit Sortierung aktualisieren
         self.tree.heading(col, command=lambda: self.sort_column(col, not reverse))                
+        
+        # --- NEU: DIESER AUFRUF HAT GEFEHLT! ---
+        self._update_row_numbers()               
 
     # Funktion zum Aktualisieren der Highscore-Anzeige  
     def update_highscores(self):
@@ -193,14 +210,16 @@ class HighscoreDeluebs:
             
             self.tree.insert(
                 "", "end",
-                values=(match_id, spieler_name, hs.get("programm_name", "Unbekannt"), punkte_durchgang, gesamtpunkte, hs.get("timestamp", "Unbekannt")),
+                # NEU: Das "-" ganz vorne einfügen!
+                values=("-", match_id, spieler_name, hs.get("programm_name", "Unbekannt"), punkte_durchgang, gesamtpunkte, hs.get("timestamp", "Unbekannt")),
                 tags=(tag,)
             )
             
             if hs.get("survival_modus", 0) == 0 and hs.get("gegner_modus", 0) == 1:
                 self.tree.insert(
                     "", "end",
-                    values=(match_id, hs.get("spieler2", "Unbekannt"), hs.get("programm_name", "Unbekannt"), hs.get("punkte_durchgang_pl2", 0), hs.get("gesamtpunkte_pl2", 0), hs.get("timestamp", "Unbekannt")),
+                    # NEU: Auch hier das "-" ganz vorne einfügen!
+                    values=("-", match_id, hs.get("spieler2", "Unbekannt"), hs.get("programm_name", "Unbekannt"), hs.get("punkte_durchgang_pl2", 0), hs.get("gesamtpunkte_pl2", 0), hs.get("timestamp", "Unbekannt")),
                     tags=(tag,)
                 )
 
@@ -217,7 +236,8 @@ class HighscoreDeluebs:
                 val = entry.get()
                 if val:
                     try:
-                        cell_value = values[list(self.filters.keys()).index(col)]
+                        # +1 weil "#" ganz links dazu kam!
+                        cell_value = values[list(self.filters.keys()).index(col) + 1]
     
                         if col in ["punkte_durchgang", "gesamtpunkte"]:
                             cell_value = float(cell_value)
