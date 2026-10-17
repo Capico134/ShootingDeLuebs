@@ -236,8 +236,17 @@ class HighscoreDeluebs:
                 val = entry.get()
                 if val:
                     try:
-                        # +1 weil "#" ganz links dazu kam!
-                        cell_value = values[list(self.filters.keys()).index(col) + 1]
+                        # --- ELA-Prinzip: Dynamischer Spaltenabgleich statt starrer Indizes ---
+                        col_mapping = {
+                            "match_id": "ID",
+                            "spieler": "Spieler",
+                            "programm_name": "Modus",
+                            "punkte_durchgang": "Punkte Durchgang",
+                            "gesamtpunkte": "Gesamtpunkte",
+                            "timestamp": "Zeitstempel"
+                        }
+                        spalten_name = col_mapping[col]
+                        cell_value = values[self.columns.index(spalten_name)]
     
                         if col in ["punkte_durchgang", "gesamtpunkte"]:
                             cell_value = float(cell_value)
@@ -275,6 +284,7 @@ class HighscoreDeluebs:
                 self.tree.delete(row_id)
         
         self.sort_column("Zeitstempel", True)
+        self._update_row_numbers()
 
     def show_context_menu(self, event):
         context_menu = tk.Menu(self.highscore_window, tearoff=0)
@@ -292,7 +302,7 @@ class HighscoreDeluebs:
         for item in selected_items:
             values = self.tree.item(item, "values")
             for entry in self.highscore_manager.data:
-                if entry["timestamp"] == values[5]:
+                if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     entry_data = f"Programm: {entry.get('programm_name','unbekannt')}\n{entry.get('timestamp','unbekannt')}\n\n" \
                                  f"Spieler: {entry.get('spieler','unbekannt')}\nPunkte: {entry.get('punkte_durchgang','0')}\nGesamtpunkte: {entry.get('gesamtpunkte','0')}\n" 
                     if entry["gegner_modus"] == 1:
@@ -317,7 +327,7 @@ class HighscoreDeluebs:
         for item in selected_items: 
             values = self.tree.item(item, "values") 
             for entry in self.highscore_manager.data:
-                if entry["timestamp"] == values[5]:
+                if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     text = "\n".join([f"{key}: {value}" for key, value in entry.items() if key not in exclude_keys])
                     messagebox.showinfo("Highscore-Details", text)
 
@@ -344,7 +354,7 @@ class HighscoreDeluebs:
         for item in selected_items:
             values = self.tree.item(item, "values")
             for entry in self.highscore_manager.data:
-                if entry["timestamp"] == values[5]:
+                if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     
                     sp1_name = entry.get('spieler', 'Spieler 1')[:18]
                     if entry.get("gegner_modus", 0) != 0:
@@ -566,7 +576,7 @@ class HighscoreDeluebs:
             
             # Wir suchen den passenden Eintrag in unseren Master-Daten
             for entry in self.highscore_manager.data:
-                if entry["timestamp"] == values[5]:
+                if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     match_id = entry.get("match_id")
                     
                     if match_id:
@@ -1037,7 +1047,7 @@ class HighscoreDeluebs:
             values = self.tree.item(item, "values")
             
             for entry in self.highscore_manager.data:
-                if entry["timestamp"] == values[5]:
+                if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     match_id = entry.get("match_id")
                     
                     if match_id:
@@ -1378,7 +1388,7 @@ class HighscoreDeluebs:
             values = self.tree.item(item, "values")
             
             for entry in self.highscore_manager.data:
-                if entry["timestamp"] == values[5]:
+                if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     match_id = entry.get("match_id")
                     if match_id:
                         yaml_filename = os.path.join("savegames", "replays", f"REPLAY_MATCH{match_id:06d}.yaml")
@@ -1406,7 +1416,7 @@ class HighscoreDeluebs:
             values = self.tree.item(item, "values")
             
             for entry in self.highscore_manager.data:
-                if entry["timestamp"] == values[5]:
+                if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     match_id = entry.get("match_id")
                     if match_id:
                         # Pfad prüfen (Aus Sicht der GUI im Hauptordner)
