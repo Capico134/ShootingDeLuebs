@@ -19,7 +19,7 @@ class HighscoreDeluebs:
         self.anzahl_eintraege = tk.IntVar(value=0)
         
         # --- ELA-Tipp 3: Zentrale Spaltendefinition (Single Source of Truth) ---
-        self.columns = ("#", "ID", "Spieler", "Modus", "Punkte Durchgang", "Gesamtpunkte", "Zeitstempel")
+        self.columns = ("#", "ID", "Spieler", "Modus", "Punkte", "Gesamtpunkte", "Zeitstempel")
 
     def _update_row_numbers(self):
         """Nummeriert alle sichtbaren Reihen (nach Filtern und Sortieren) von 1 bis X durch."""
@@ -85,7 +85,9 @@ class HighscoreDeluebs:
     
         # Frame für Tabelle
         frame = tk.Frame(self.highscore_window, bg='plum')
-        frame.pack(pady=10, fill="both", expand=True)
+        
+        # HIER IST DER FIX: pady=(10, 0)
+        frame.pack(pady=(10, 0), fill="both", expand=True)
         
         scrollbar = tk.Scrollbar(frame, width=47)
         scrollbar.pack(side="right", fill="y")
@@ -113,24 +115,47 @@ class HighscoreDeluebs:
         self.tree.column("ID", width=60, anchor="center", stretch=False)
         self.tree.column("Spieler", width=260)
         self.tree.column("Modus", width=400, stretch=True)
-        self.tree.column("Punkte Durchgang", width=30, stretch=True)
+        self.tree.column("Punkte", width=30, stretch=True)
 
         # --- AB HIER DIE FILTER-GUI BAUEN ---
         filter_frame = tk.Frame(self.highscore_window, bg='plum')
-        filter_frame.pack(fill="x")
+        filter_frame.pack(fill="x", padx=10, pady=(0, 10))
         
-        # Filter-Eingabefelder generieren
         self.filters = {}
-        filter_keys = ("match_id", "spieler", "programm_name", "punkte_durchgang", "gesamtpunkte", "timestamp")
-        for col in filter_keys:
-            feld_breite = 3 if col == "match_id" else 16 
-            entry = tk.Entry(filter_frame, font=('Arial', 25), width=feld_breite)
-            entry.pack(side="left", padx=5)
-            self.filters[col] = entry
+        
+        # ELA-Prinzip: Mapping für Beschriftung und Logik
+        filter_mapping = {
+            "match_id": "ID",
+            "spieler": "Spieler",
+            "programm_name": "Modus",
+            "punkte_durchgang": "Punkte",
+            "gesamtpunkte": "Gesamtpunkte",
+            "timestamp": "Zeitstempel"
+        }
+
+        # Unsichtbarer Platzhalter, der die "#"-Spalte überbrückt
+        tk.Label(filter_frame, text="", bg='plum', width=5).pack(side="left")
+
+        for internal_key, display_name in filter_mapping.items():
+            block = tk.Frame(filter_frame, bg='plum')
+            # HIER IST DER FIX: anchor="s" (South) zieht die Blöcke nach unten
+            block.pack(side="left", padx=5, anchor="s")
+
+            # Überschrift für das Textfeld
+            lbl = tk.Label(block, text=display_name, bg='plum', fg='#333333', font=('Arial', 14, 'bold'))
+            lbl.pack(side="top", anchor="w")
+
+            # Textfeld (Breite leicht angepasst für bessere Optik)
+            feld_breite = 4 if internal_key == "match_id" else (6 if "punkte" in internal_key else 16)
+            entry = tk.Entry(block, font=('Arial', 25), width=feld_breite)
+            entry.pack(side="bottom")
+            
+            self.filters[internal_key] = entry
             entry.bind("<Return>", lambda event: self.apply_filters())
 
+        # HIER IST DER FIX: Auch der Button ist nun unten angedockt
         filter_button = tk.Button(filter_frame, text="Filter anwenden", command=self.apply_filters, font=('Arial', 20))
-        filter_button.pack(side="right", padx=(0, 5))
+        filter_button.pack(side="right", padx=(10, 5), anchor="s", pady=(0, 2))
 
         # Event-Bindings für Maus & Tasten
         press_timer = None     
@@ -228,11 +253,34 @@ class HighscoreDeluebs:
         self.update_highscores()
     
         filtered_items = []
+        
+        # --- ELA: Zeitstempel einmalig vorab prüfen (spart 400x strptime im Loop und verhindert Spam!) ---
+        ts_val = self.filters["timestamp"].get().strip()
+        ts_range = None
+        ts_error = False
+        if "-" in ts_val:
+            try:
+                start, end = map(str.strip, ts_val.split("-"))
+                ts_range = (
+                    dt.datetime.strptime(start, "%d.%m.%y"),
+                    dt.datetime.strptime(end, "%d.%m.%y") + dt.timedelta(days=1) # Ende des Tages einschließen
+                )
+            except ValueError:
+                ts_error = True
+                print(f"Filter-Warnung: Ungueltige Eingabe '{ts_val}'.\n"
+                      f"Erlaubte Formate fuer den Zeitstempel:\n"
+                      f"  1. Zeitraum (mit Bindestrich): 'TT.MM.JJ - TT.MM.JJ'\n"
+                      f"  2. Einfacher Text (ohne Bindestrich): z.B. '20.07.26', '23:51' oder '08.26'")
+
         for row_id in self.tree.get_children():
             values = self.tree.item(row_id, "values")
             match = True
+            
+            if ts_error:
+                match = False # Bei einem kaputten Datums-Bereich blenden wir alles aus, bis er korrigiert wird
     
             for col, entry in self.filters.items():
+                if not match: break # Spart Rechenzeit
                 val = entry.get()
                 if val:
                     try:
@@ -241,7 +289,7 @@ class HighscoreDeluebs:
                             "match_id": "ID",
                             "spieler": "Spieler",
                             "programm_name": "Modus",
-                            "punkte_durchgang": "Punkte Durchgang",
+                            "punkte_durchgang": "Punkte",
                             "gesamtpunkte": "Gesamtpunkte",
                             "timestamp": "Zeitstempel"
                         }
@@ -262,17 +310,14 @@ class HighscoreDeluebs:
                                 if cell_value != float(val.strip()): match = False
     
                         elif col == "timestamp":
-                            if "-" in val:
-                                start, end = map(str.strip, val.split("-"))
-                                start_date = dt.datetime.strptime(start, "%d.%m.%y")
-                                end_date = dt.datetime.strptime(end, "%d.%m.%y") + dt.timedelta(days=1)
+                            if ts_range:
                                 cell_date = dt.datetime.strptime(cell_value, "%d.%m.%y %H:%M:%S")
-                                if not (start_date <= cell_date <= end_date): match = False
-    
+                                if not (ts_range[0] <= cell_date <= ts_range[1]): match = False
+                            else:
+                                if val.strip() not in cell_value: match = False
                         elif col in ["match_id", "spieler", "programm_name"]:
                             pattern = re.compile(val, re.IGNORECASE)
                             if not pattern.search(str(cell_value)): match = False
-    
                     except (ValueError, IndexError):
                         match = False
     
@@ -282,6 +327,11 @@ class HighscoreDeluebs:
         for row_id in self.tree.get_children():
             if row_id not in filtered_items:
                 self.tree.delete(row_id)
+                
+        # --- ELA: Smarter Tipp fuer den Nutzer, falls die Suche wegen fehlendem Bindestrich leer bleibt ---
+        if not filtered_items and not ts_error and ts_val:
+            if "-" not in ts_val and len(ts_val) > 8:
+                print(f"Info: Keine Treffer. Falls du '{ts_val}' als Zeitraum meintest, setze einen Bindestrich dazwischen (z.B. 'TT.MM.JJ - TT.MM.JJ').")
         
         self.sort_column("Zeitstempel", True)
         self._update_row_numbers()
