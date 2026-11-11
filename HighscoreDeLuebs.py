@@ -10,13 +10,14 @@ import io #für zipfile
 import os #für Eventlog
 from PIL import Image, ImageTk  # Pillow muss installiert sein: `pip install pillow`
 from StateManagerDeLuebs import GameState
+import tools.MatchIntegrity as MatchIntegrity
 
 class HighscoreDeluebs:
-    def __init__(self, SDeluebs):
+    def __init__(self, SDeluebs=None):
         self.SDeluebs = SDeluebs
         self.highscore_manager = HighscoreManager()
         self.load_scores()
-        self.anzahl_eintraege = tk.IntVar(value=0)
+        self.anzahl_eintraege = None  # <--- FIX: Hier nur als Platzhalter definieren
         
         # --- ELA-Tipp 3: Zentrale Spaltendefinition (Single Source of Truth) ---
         self.columns = ("#", "ID", "Spieler", "Modus", "Punkte", "Gesamtpunkte", "Zeitstempel")
@@ -40,13 +41,21 @@ class HighscoreDeluebs:
         style.configure("Treeview", background='lavenderblush')
 
     def show_highscore_window(self):
-        self.highscore_window = tk.Toplevel(self.SDeluebs.root)
+        # ELA: Smarte Weiche für Standalone vs. In-Game Aufruf!
+        if self.SDeluebs and hasattr(self.SDeluebs, 'root'):
+            self.highscore_window = tk.Toplevel(self.SDeluebs.root)
+        else:
+            self.highscore_window = tk.Tk()
+            
+        # ---> FIX: Erst JETZT existiert ein Fenster! Hier darf die Variable rein: <---
+        self.anzahl_eintraege = tk.IntVar(value=len(self.highscore_manager.data))
+            
         self.highscore_window.title("Highscores")
         self.highscore_window.geometry('1800x900')
         self.highscore_window['background'] = 'plum'
         self.highscore_window.option_add("*TCombobox*Listbox.font", ("Arial", 25))
         self.customize_style()
-
+        
         top_frame = tk.Frame(self.highscore_window, bg='plum')
         top_frame.pack(fill="x", padx=10, pady=10)
     
@@ -63,7 +72,7 @@ class HighscoreDeluebs:
         # Dropdown
         self.selected_mode = tk.StringVar(value="Alle Modi")
         self.mode_dropdown = ttk.Combobox(top_frame, textvariable=self.selected_mode, values=["Alle Modi"] + list(modes), width=30, state="readonly")
-        self.mode_dropdown.pack(side="left", padx=(150, 0))
+        self.mode_dropdown.pack(side="left", padx=(130, 0))
         self.mode_dropdown.configure(font=('Arial', 30))
         self.mode_dropdown.bind("<Button-1>", lambda event: self.mode_dropdown.focus_set())
 
@@ -73,11 +82,19 @@ class HighscoreDeluebs:
 
         # --- NEU: Refresh Button ---
         refresh_button = tk.Button(top_frame, text="↻", command=self.refresh_table, font=('Arial', 25), bg='lightblue')
-        refresh_button.pack(pady=10, side="right", padx=(15, 0))
+        refresh_button.pack(pady=10, side="right", padx=(0, 0))
+        
+        #Integrität Button
+        integrity_btn = tk.Button(
+            top_frame, text="🔍", 
+            command=lambda: MatchIntegrity.start_ui(self.highscore_window), 
+            font=('Arial', 25), bg='khaki', width=2
+        )
+        integrity_btn.pack(pady=10, side="right", padx=(15, 0))
     
         # Anzahl-Anzeige
         block = tk.Frame(top_frame)
-        block.pack(side="right", padx=(5, 25))
+        block.pack(side="right", padx=(5, 10))
         label_text_eintraege = tk.Label(block, text=" Anzahl Einträge ", font=('Arial', 17), bg="thistle")
         label_text_eintraege.pack(side=tk.TOP)
         label_anzahl_eintraege = tk.Label(block, textvariable=self.anzahl_eintraege, font=('Arial', 17))
@@ -349,27 +366,50 @@ class HighscoreDeluebs:
 
     def delete_selected_entries(self):
         selected_items = self.tree.selection()
+        
+        # Liste der zu löschenden MATCH-Dateien sammeln
+        files_to_delete = []
+        entries_to_remove = []
+        
         for item in selected_items:
             values = self.tree.item(item, "values")
             for entry in self.highscore_manager.data:
                 if entry["timestamp"] == values[self.columns.index("Zeitstempel")]:
                     entry_data = f"Programm: {entry.get('programm_name','unbekannt')}\n{entry.get('timestamp','unbekannt')}\n\n" \
                                  f"Spieler: {entry.get('spieler','unbekannt')}\nPunkte: {entry.get('punkte_durchgang','0')}\nGesamtpunkte: {entry.get('gesamtpunkte','0')}\n" 
-                    if entry["gegner_modus"] == 1:
+                    if entry.get("gegner_modus") == 1:
                         entry_data += f"\nSpieler 2: {entry.get('spieler2','unbekannt')}\nPunkte: {entry.get('punkte_durchgang_pl2','0')}\nGesamtpunkte: {entry.get('gesamtpunkte_pl2','0')}\n"  
                     
                     self.highscore_window.withdraw()
                     antwort = messagebox.askyesno("Bestätigung", f"Eintrag wirklich löschen?\n\n{entry_data}")
                     self.highscore_window.deiconify()
                     self.highscore_window.lift()
-                    if not antwort: break
-                    self.highscore_manager.data.remove(entry)
+                    
+                    if antwort: 
+                        entries_to_remove.append(entry)
+                        match_id = entry.get("match_id")
+                        if match_id:
+                            files_to_delete.append(os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json"))
                     break
-        self.update_treeview(self.highscore_manager.data)
-        self.apply_filters()
-        
-        with open(self.highscore_manager.file_path, "w") as file:
-            json.dump(self.highscore_manager.data, file, indent=4)
+                    
+        # Löschung ausführen
+        if entries_to_remove:
+            for entry in entries_to_remove:
+                self.highscore_manager.data.remove(entry)
+                
+            # Sicheres Speichern der aktualisierten highscore.json aufrufen!
+            if self.highscore_manager.flush_to_disk():
+                # Physische MATCHxxxxxx.json Dateien löschen, wenn der Highscore sicher geschrieben wurde
+                for file_path in files_to_delete:
+                    try:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            print(f"Zugehörige Log-Datei gelöscht: {file_path}")
+                    except OSError as e:
+                        print(f"Fehler beim Löschen der Log-Datei {file_path}: {e}")
+                        
+            self.update_treeview(self.highscore_manager.data)
+            self.apply_filters()
 
     def show_selected_entries(self): 
         exclude_keys = {"highscore_log"}
@@ -1519,16 +1559,16 @@ class HighscoreDeluebs:
             "highscore_log": SD.KSobjekt.highscore_log,
             "programm_name": SD.SMobjekt.programm_name.get(),
             "punkte_durchgang": SD.KSobjekt.players[0].punkte_durchgang,
-            "speedpunkte_durchgang": round(SD.KSobjekt.players[0].speedpunkte_durchgang,3),
-            "gesamtpunkte": round(SD.KSobjekt.players[0].punkte_durchgang+SD.KSobjekt.players[0].speedpunkte_durchgang,3),
+            "speedpunkte_durchgang": round(SD.KSobjekt.players[0].speedpunkte_durchgang, 3),
+            "gesamtpunkte": round(SD.KSobjekt.players[0].punkte_durchgang + SD.KSobjekt.players[0].speedpunkte_durchgang, 3),
             "punkte_durchgang_pl2": SD.KSobjekt.players[1].punkte_durchgang,
-            "speedpunkte_durchgang_pl2": round(SD.KSobjekt.players[1].speedpunkte_durchgang,3),
-            "gesamtpunkte_pl2": round(SD.KSobjekt.players[1].punkte_durchgang+SD.KSobjekt.players[1].speedpunkte_durchgang,3),
+            "speedpunkte_durchgang_pl2": round(SD.KSobjekt.players[1].speedpunkte_durchgang, 3),
+            "gesamtpunkte_pl2": round(SD.KSobjekt.players[1].punkte_durchgang + SD.KSobjekt.players[1].speedpunkte_durchgang, 3),
             "match_id": SD.SMobjekt.match_id,
             "version": SD.version,
             "timestamp": dt.datetime.now().strftime("%d.%m.%y %H:%M:%S")
         }
-        self.highscore_manager.save_highscore(highscore_entry)
+        # ELA: Noch nicht auf Platte schreiben – erst in save_match() nach der Hash-Berechnung!
         return highscore_entry
 
     def load_scores(self):
@@ -1553,12 +1593,20 @@ class HighscoreDeluebs:
         self.update_highscores() # <-- DIESEN NAMEN BITTE AN DEINEN CODE ANPASSEN
 
     def save_match(self, match_timeline, highscore_entry):
-        """Speichert den Event-Log zusammen mit den Metadaten"""
+        """
+        ELA: 1. Speichert MATCHxxxxxx.json atomar
+             2. Berechnet den SHA256-Hash
+             3. Speichert highscore_entry inkl. Hash in die highscore.json
+        """
+        import hashlib
+        match_hash = None
+        
         try:
             match_id = self.SDeluebs.SMobjekt.match_id
             if match_timeline:
                 os.makedirs(os.path.join("savegames", "logs"), exist_ok=True)
                 log_dateiname = os.path.join("savegames", "logs", f"MATCH{match_id:06d}.json")
+                temp_log = log_dateiname + ".tmp"
                 
                 match_data = {
                     "metadata": highscore_entry,
@@ -1573,11 +1621,22 @@ class HighscoreDeluebs:
                 
                 json_str = re.sub(r'\[[\s\d\.,\-]*\]', collapse_arrays, json_str)
                 
-                with open(log_dateiname, "w", encoding="utf-8") as f:
+                # 1. MATCH-JSON atomar speichern (newline='\n' garantiert gleiche Hashes auf Pi 5 & Windows)
+                with open(temp_log, "w", encoding="utf-8", newline="\n") as f:
                     f.write(json_str)
-            print(f"Match {match_id} (Event-Log) erfolgreich gespeichert!")
+                os.replace(temp_log, log_dateiname)
+                
+                # 2. SHA256-Hash der fertigen MATCH-JSON berechnen
+                with open(log_dateiname, "rb") as f:
+                    match_hash = hashlib.file_digest(f, "sha256").hexdigest()
+                    
+                print(f"Match {match_id} (Event-Log) erfolgreich gespeichert!")
         except Exception as e:
             print(f"Fehler beim Speichern der Match-Daten: {e}")
+
+        # 3. Hash anheften und EINMALIG sicher in die highscore.json schreiben
+        highscore_entry["match_sha256"] = match_hash
+        self.highscore_manager.save_highscore(highscore_entry)
             
 
 
@@ -1588,8 +1647,8 @@ class HighscoreManager:
         # NEU: Die Wegfahrsperre! Standardmäßig ist das Speichern erlaubt.
         self.readonly = False 
 
-    def save_highscore(self, highscore_entry):
-        # --- NEU: Der Türsteher ---
+    def flush_to_disk(self):
+        """Schreibt self.data absturzsicher über eine .tmp-Datei in die highscore.json."""
         if self.readonly:
             messagebox.showerror(
                 "Speichern blockiert!", 
@@ -1598,19 +1657,14 @@ class HighscoreManager:
                 "Um deine bisherigen Daten zu schützen, wurde das Speichern für "
                 "diese Sitzung deaktiviert! Bitte überprüfe die highscore.json."
             )
-            return  # Bricht die Funktion hier ab, NICHTS wird auf die Festplatte geschrieben!
+            return False
 
-        # ... (Dein bisheriger, sicherer Temp-File Code bleibt exakt gleich)
-        self.data.append(highscore_entry)
         temp_file = self.file_path + ".tmp"
-        
         try:
             with open(temp_file, "w", encoding="utf-8") as file:
                 json.dump(self.data, file, indent=4)
-                
             os.replace(temp_file, self.file_path)
-            print("Neuer Highscore erfolgreich und sicher gespeichert.")
-            
+            return True
         except OSError as e:
             print(f"KRITISCHER FEHLER beim Speichern ({e}).")
             if os.path.exists(temp_file):
@@ -1618,6 +1672,17 @@ class HighscoreManager:
                     os.remove(temp_file)
                 except OSError:
                     pass
+            return False
+
+    def save_highscore(self, highscore_entry):
+        if self.readonly:
+            # flush_to_disk kümmert sich um die Fehlermeldung
+            self.flush_to_disk()
+            return
+            
+        self.data.append(highscore_entry)
+        if self.flush_to_disk():
+            print("Neuer Highscore erfolgreich und sicher gespeichert.")
 
     def load_highscores(self):
         try:
@@ -1670,14 +1735,11 @@ class HighscoreManager:
         #filtered_data.sort(key=lambda x: x.get(sort_by, 0), reverse=True) #ACHTUNG DIESER FILTER WURDE ABGESCHALTET!!!!!!!!!!!!!
         return filtered_data
 
-class DummyDeluebs:
-    def __init__(self, root):
-        self.root = root
-        #HighscoreDeluebs
-        self.HSobjekt = HighscoreDeluebs(self)    
+ 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = DummyDeluebs(root)
-    app.HSobjekt.show_highscore_window()
-    root.mainloop()
+    # Standalone-Modus (ohne Hauptspiel)
+    app = HighscoreDeluebs()
+    app.show_highscore_window()
+    # Da highscore_window jetzt ein vollwertiges tk.Tk() ist, rufen wir hier den mainloop auf!
+    app.highscore_window.mainloop()
